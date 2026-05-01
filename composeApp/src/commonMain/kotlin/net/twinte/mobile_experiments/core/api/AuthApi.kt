@@ -1,5 +1,6 @@
 package net.twinte.mobile_experiments.core.api
 
+import net.twinte.mobile_experiments.core.domain.AuthProvider
 import net.twinte.mobile_experiments.core.domain.User
 
 interface AuthApi {
@@ -7,5 +8,5 @@ interface AuthApi {
 
     suspend fun deleteAccount()
 
-    suspend fun deleteUserAuthentication(providerName: String)
+    suspend fun deleteUserAuthentication(provider: AuthProvider)
 }
