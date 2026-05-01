@@ -1,5 +1,6 @@
 package net.twinte.mobile_experiments.core.timetable
 
+import kotlinx.datetime.LocalDate
 import net.twinte.mobile_experiments.core.domain.CourseMethod
 import net.twinte.mobile_experiments.core.domain.CourseSchedule
 import net.twinte.mobile_experiments.core.domain.Day
@@ -18,14 +19,14 @@ class DailyTimetableBuilderTest {
     fun usesSubstituteDayWhenEventHasChangeTo() {
         val timetable = builder.build(
             DailyTimetableInput(
-                date = "2026-05-01",
+                date = LocalDate(2026, 5, 1),
                 day = Day.Friday,
                 module = Module.SpringA,
                 events = listOf(
                     SchoolCalendarEvent(
                         id = 1,
                         type = EventType.SubstituteDay,
-                        date = "2026-05-01",
+                        date = LocalDate(2026, 5, 1),
                         description = "",
                         changeTo = Day.Monday,
                     ),
@@ -56,7 +57,7 @@ class DailyTimetableBuilderTest {
     fun marksDuplicatedCoursesInSamePeriod() {
         val timetable = builder.build(
             DailyTimetableInput(
-                date = "2026-05-01",
+                date = LocalDate(2026, 5, 1),
                 day = Day.Friday,
                 module = Module.SpringA,
                 events = emptyList(),

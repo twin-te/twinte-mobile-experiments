@@ -1,5 +1,7 @@
 package net.twinte.mobile_experiments.core.domain
 
+import kotlinx.datetime.LocalDate
+
 enum class Module(val label: String) {
     Unknown(""),
     SpringA("春A"),
@@ -67,7 +69,7 @@ data class RegisteredCourse(
 data class SchoolCalendarEvent(
     val id: Int,
     val type: EventType,
-    val date: String,
+    val date: LocalDate,
     val description: String,
     val changeTo: Day? = null,
 )

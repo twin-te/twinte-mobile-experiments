@@ -1,14 +1,17 @@
 package net.twinte.mobile_experiments.core.timetable
 
+import kotlinx.datetime.LocalDate
+import kotlin.time.Instant
+
 data class WatchScheduleSnapshot(
-    val date: String,
+    val date: LocalDate,
     val moduleLabel: String,
     val dayLabel: String,
     val eventLabel: String,
     val current: WatchCourse?,
     val next: WatchCourse?,
     val courses: List<WatchCourse>,
-    val syncedAt: String,
+    val syncedAt: Instant,
 )
 
 data class WatchCourse(
@@ -23,7 +26,7 @@ class WatchScheduleSnapshotBuilder {
     fun build(
         timetable: DailyTimetable,
         currentPeriod: Int,
-        syncedAt: String,
+        syncedAt: Instant,
     ): WatchScheduleSnapshot {
         val courses = timetable.slots.mapNotNull { slot ->
             val course = slot as? DailyCourseSlot.Course ?: return@mapNotNull null
