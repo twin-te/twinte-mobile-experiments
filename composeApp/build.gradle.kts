@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.kotlinxRpc)
 }
 
 kotlin {
@@ -40,6 +41,8 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.kotlinx.datetime)
+            api(libs.kotlinx.rpc.grpc.core)
+            api(libs.kotlinx.rpc.protobuf.core)
             implementation(libs.ktor.http)
         }
         commonTest.dependencies {
@@ -75,6 +78,16 @@ android {
     }
 }
 
+rpc {
+    protoc {
+    }
+}
+
 dependencies {
     debugImplementation(libs.compose.uiTooling)
+}
+
+configurations.configureEach {
+    // kotlinx-rpc gRPC currently pulls both protobuf-java and protobuf-javalite on Android.
+    exclude(group = "io.grpc", module = "grpc-protobuf-lite")
 }

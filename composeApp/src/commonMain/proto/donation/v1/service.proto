@@ -1,0 +1,161 @@
+syntax = "proto3";
+package donation.v1;
+
+import "donation/v1/type.proto";
+import "shared/option.proto";
+import "shared/type.proto";
+
+option go_package = "github.com/twin-te/twin-te/back/handler/api/v4/rpcgen/donation/v1;donationv1";
+option java_package = "net.twinte.api.donation.v1";
+
+// The following error codes are not stated explicitly in the each rpc, but may be returned.
+//   - shared.InvalidArgument
+//   - shared.Unauthenticated
+//   - shared.Unauthorized
+service DonationService {
+  rpc CreateOneTimeCheckoutSession(CreateOneTimeCheckoutSessionRequest) returns (CreateOneTimeCheckoutSessionResponse) {
+    option (shared.twinte) = {
+      authentication: OPTIONAL
+      error_codes: []
+    };
+  }
+
+  rpc CreateSubscriptionCheckoutSession(CreateSubscriptionCheckoutSessionRequest) returns (CreateSubscriptionCheckoutSessionResponse) {
+    option (shared.twinte) = {
+      authentication: REQURED
+      error_codes: [
+        "donation.ActiveSubscriptionAlreadyExists",
+        "donation.SubscriptionPlanNotFound"
+      ]
+    };
+  }
+
+  rpc GetPaymentUser(GetPaymentUserRequest) returns (GetPaymentUserResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (shared.twinte) = {
+      authentication: REQURED
+      error_codes: []
+    };
+  }
+
+  rpc UpdatePaymentUser(UpdatePaymentUserRequest) returns (UpdatePaymentUserResponse) {
+    option (shared.twinte) = {
+      authentication: REQURED
+      error_codes: []
+    };
+  }
+
+  rpc ListPaymentHistories(ListPaymentHistoriesRequest) returns (ListPaymentHistoriesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (shared.twinte) = {
+      authentication: REQURED
+      error_codes: []
+    };
+  }
+
+  rpc ListSubscriptionPlans(ListSubscriptionPlansRequest) returns (ListSubscriptionPlansResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (shared.twinte) = {
+      authentication: NOT_REQURED
+      error_codes: []
+    };
+  }
+
+  rpc GetActiveSubscription(GetActiveSubscriptionRequest) returns (GetActiveSubscriptionResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (shared.twinte) = {
+      authentication: REQURED
+      error_codes: ["donation.SubscriptionNotFound"]
+    };
+  }
+
+  rpc Unsubscribe(UnsubscribeRequest) returns (UnsubscribeResponse) {
+    option (shared.twinte) = {
+      authentication: REQURED
+      error_codes: ["donation.SubscriptionNotFound"]
+    };
+  }
+
+  rpc GetTotalAmount(GetTotalAmountRequest) returns (GetTotalAmountResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (shared.twinte) = {
+      authentication: NOT_REQURED
+      error_codes: []
+    };
+  }
+
+  rpc ListContributors(ListContributorsRequest) returns (ListContributorsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+    option (shared.twinte) = {
+      authentication: NOT_REQURED
+      error_codes: []
+    };
+  }
+}
+
+message CreateOneTimeCheckoutSessionRequest {
+  int32 amount = 1;
+}
+
+message CreateOneTimeCheckoutSessionResponse {
+  string checkout_session_id = 1;
+}
+
+message CreateSubscriptionCheckoutSessionRequest {
+  string plan_id = 1;
+}
+
+message CreateSubscriptionCheckoutSessionResponse {
+  string checkout_session_id = 1;
+}
+
+message GetPaymentUserRequest {}
+
+message GetPaymentUserResponse {
+  PaymentUser payment_user = 1;
+}
+
+message UpdatePaymentUserRequest {
+  optional shared.OptionalString display_name = 1;
+  optional shared.OptionalString link = 2;
+}
+
+message UpdatePaymentUserResponse {
+  PaymentUser payment_user = 1;
+}
+
+message ListPaymentHistoriesRequest {}
+
+message ListPaymentHistoriesResponse {
+  repeated PaymentHistory payment_histories = 1;
+}
+
+message ListSubscriptionPlansRequest {}
+
+message ListSubscriptionPlansResponse {
+  repeated SubscriptionPlan subscription_plans = 1;
+}
+
+message GetActiveSubscriptionRequest {}
+
+message GetActiveSubscriptionResponse {
+  Subscription subscription = 1;
+}
+
+message UnsubscribeRequest {
+  string id = 1;
+}
+
+message UnsubscribeResponse {}
+
+message GetTotalAmountRequest {}
+
+message GetTotalAmountResponse {
+  int32 total_amount = 1;
+}
+
+message ListContributorsRequest {}
+
+message ListContributorsResponse {
+  repeated Contributor contributors = 1;
+}
