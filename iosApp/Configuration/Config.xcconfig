@@ -1,0 +1,7 @@
+TEAM_ID=
+
+PRODUCT_NAME=twinte-mobile-exprements
+PRODUCT_BUNDLE_IDENTIFIER=net.twinte.mobile_experiments.twinte-mobile-exprements$(TEAM_ID)
+
+CURRENT_PROJECT_VERSION=1
+MARKETING_VERSION=1.0
