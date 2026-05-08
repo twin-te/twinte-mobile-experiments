@@ -16,8 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import org.jetbrains.compose.resources.painterResource
 
-import twinte_mobile_exprements.composeapp.generated.resources.Res
-import twinte_mobile_exprements.composeapp.generated.resources.compose_multiplatform
+import twinte_mobile_exprements.shared.generated.resources.Res
+import twinte_mobile_exprements.shared.generated.resources.compose_multiplatform
 
 @Composable
 @Preview
