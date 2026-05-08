@@ -13,7 +13,9 @@ composeMultiplatform = "1.10.3"
 junit = "4.13.2"
 kotlin = "2.3.21"
 kotlinx-datetime = "0.7.1"
+kotlinx-coroutines = "1.10.2"
 kotlinx-rpc = "0.11.0-grpc-187"
+grpc = "1.79.0"
 ktor = "3.4.3"
 material3 = "1.10.0-alpha05"
 
@@ -21,8 +23,11 @@ material3 = "1.10.0-alpha05"
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlin-testJunit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin" }
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinx-datetime" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
+kotlinx-rpc-grpc-client = { module = "org.jetbrains.kotlinx:kotlinx-rpc-grpc-client", version.ref = "kotlinx-rpc" }
 kotlinx-rpc-grpc-core = { module = "org.jetbrains.kotlinx:kotlinx-rpc-grpc-core", version.ref = "kotlinx-rpc" }
 kotlinx-rpc-protobuf-core = { module = "org.jetbrains.kotlinx:kotlinx-rpc-protobuf-core", version.ref = "kotlinx-rpc" }
+grpc-okhttp = { module = "io.grpc:grpc-okhttp", version.ref = "grpc" }
 ktor-http = { module = "io.ktor:ktor-http", version.ref = "ktor" }
 junit = { module = "junit:junit", version.ref = "junit" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core" }

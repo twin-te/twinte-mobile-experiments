@@ -30,6 +30,11 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.activity.compose)
+            implementation(libs.kotlinx.rpc.grpc.client)
+            runtimeOnly(libs.grpc.okhttp)
+        }
+        iosMain.dependencies {
+            implementation(libs.kotlinx.rpc.grpc.client)
         }
         commonMain.dependencies {
             implementation(libs.compose.runtime)
@@ -47,6 +52,7 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+            implementation(libs.kotlinx.coroutines.test)
         }
     }
 }
