@@ -15,6 +15,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,16 +24,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import io.ktor.client.HttpClient
-import io.ktor.client.request.get
-import io.ktor.client.request.parameter
-import io.ktor.client.statement.HttpResponse
-import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.launch
 import net.twinte.mobile_experiments.core.api.ktor.KtorApiException
-import net.twinte.mobile_experiments.core.api.ktor.KtorAuthApi
-import net.twinte.mobile_experiments.core.api.ktor.TwinteSession
+import net.twinte.mobile_experiments.core.api.ktor.rememberTwinteHttpClient
+import net.twinte.mobile_experiments.core.auth.AuthRepository
+import net.twinte.mobile_experiments.core.auth.AuthSession
+import net.twinte.mobile_experiments.core.auth.rememberSessionStore
 import net.twinte.mobile_experiments.core.domain.User
 
 interface GoogleIdTokenProvider {
@@ -47,21 +45,29 @@ object UnavailableGoogleIdTokenProvider : GoogleIdTokenProvider {
     override suspend fun requestIdToken(): String? = null
 }
 
-private const val AppBaseUrl = "https://app.twinte.net"
-private const val ApiBaseUrl = "$AppBaseUrl/api/v4"
-private const val SessionCookieName = "twinte_session"
-
 @Composable
 @Preview
 fun App(
     googleIdTokenProvider: GoogleIdTokenProvider = UnavailableGoogleIdTokenProvider,
 ) {
+    val sessionStore = rememberSessionStore()
+    val httpClient = rememberTwinteHttpClient()
+    val authRepository = remember(sessionStore, httpClient) {
+        AuthRepository(
+            sessionStore = sessionStore,
+            httpClient = httpClient,
+        )
+    }
+
     MaterialTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background,
         ) {
-            GoogleLoginScreen(googleIdTokenProvider)
+            GoogleLoginScreen(
+                googleIdTokenProvider = googleIdTokenProvider,
+                authRepository = authRepository,
+            )
         }
     }
 }
@@ -69,6 +75,7 @@ fun App(
 @Composable
 private fun GoogleLoginScreen(
     googleIdTokenProvider: GoogleIdTokenProvider,
+    authRepository: AuthRepository,
 ) {
     val scope = rememberCoroutineScope()
     var isLoading by remember { mutableStateOf(false) }
@@ -84,28 +91,47 @@ private fun GoogleLoginScreen(
         )
     }
 
-    fun refreshMe(currentSessionId: String?) {
-        if (currentSessionId == null) {
+    fun applySession(session: AuthSession) {
+        sessionId = session.sessionId
+        user = session.user
+        message = "Signed in"
+    }
+
+    LaunchedEffect(authRepository) {
+        isLoading = true
+        message = "Restoring session..."
+        try {
+            authRepository.restoreSession()?.let(::applySession)
+                ?: run {
+                    message = if (googleIdTokenProvider.isConfigured) {
+                        "Not signed in"
+                    } else {
+                        "Google client ID is not configured"
+                    }
+                }
+        } catch (error: Throwable) {
             user = null
-            message = "No session"
-            return
+            sessionId = null
+            message = error.toStatusMessage()
+        } finally {
+            isLoading = false
         }
+    }
+
+    fun refreshMe() {
         scope.launch {
             isLoading = true
             message = "Checking session..."
-            runCatching {
-                KtorAuthApi(
-                    apiBaseUrl = ApiBaseUrl,
-                    session = TwinteSession(currentSessionId),
-                ).getMe()
-            }.onSuccess {
-                user = it
+            try {
+                val currentUser = authRepository.getMe()
+                user = currentUser
                 message = "Signed in"
-            }.onFailure {
+            } catch (error: Throwable) {
                 user = null
-                message = it.toStatusMessage()
+                message = error.toStatusMessage()
+            } finally {
+                isLoading = false
             }
-            isLoading = false
         }
     }
 
@@ -113,17 +139,15 @@ private fun GoogleLoginScreen(
         scope.launch {
             isLoading = true
             message = "Opening Google..."
-            runCatching {
-                googleIdTokenProvider.requestIdToken() ?: error("Google ID token is missing")
-            }.mapCatching { idToken ->
+            try {
+                val idToken = googleIdTokenProvider.requestIdToken()
+                    ?: error("Google ID token is missing")
                 message = "Creating session..."
-                fetchSessionIdWithGoogleIdToken(idToken)
-            }.onSuccess { foundSessionId ->
-                sessionId = foundSessionId
-                refreshMe(foundSessionId)
-            }.onFailure {
+                applySession(authRepository.signInWithGoogleIdToken(idToken))
+            } catch (error: Throwable) {
                 user = null
-                message = it.toStatusMessage()
+                message = error.toStatusMessage()
+            } finally {
                 isLoading = false
             }
         }
@@ -161,7 +185,7 @@ private fun GoogleLoginScreen(
             }
             OutlinedButton(
                 enabled = !isLoading,
-                onClick = { refreshMe(sessionId) },
+                onClick = ::refreshMe,
             ) {
                 Text("getMe")
             }
@@ -171,9 +195,12 @@ private fun GoogleLoginScreen(
                     contentColor = MaterialTheme.colorScheme.error,
                 ),
                 onClick = {
-                    sessionId = null
-                    user = null
-                    message = "Signed out locally"
+                    scope.launch {
+                        authRepository.clearSession()
+                        sessionId = null
+                        user = null
+                        message = "Signed out locally"
+                    }
                 },
             ) {
                 Text("Clear")
@@ -181,36 +208,6 @@ private fun GoogleLoginScreen(
         }
     }
 }
-
-private suspend fun fetchSessionIdWithGoogleIdToken(idToken: String): String {
-    val client = HttpClient {
-        followRedirects = false
-    }
-    return try {
-        val response = client.get("$AppBaseUrl/auth/v4/google/idToken") {
-            parameter("token", idToken)
-            parameter("redirect_url", AppBaseUrl)
-        }
-        response.sessionId()
-            ?: error("Session cookie is missing: HTTP ${response.status}")
-    } finally {
-        client.close()
-    }
-}
-
-private fun HttpResponse.sessionId(): String? =
-    headers.getAll(HttpHeaders.SetCookie)
-        .orEmpty()
-        .firstNotNullOfOrNull(::parseSessionCookie)
-
-private fun parseSessionCookie(setCookie: String): String? =
-    setCookie
-        .split(';')
-        .firstOrNull()
-        ?.trim()
-        ?.takeIf { it.startsWith("$SessionCookieName=") }
-        ?.substringAfter('=')
-        ?.takeIf { it.isNotBlank() }
 
 private fun Throwable.toStatusMessage(): String =
     when (this) {
