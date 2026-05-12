@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.androidApplication)
@@ -8,7 +9,14 @@ plugins {
 dependencies {
     implementation(projects.shared)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.material3)
+    implementation(libs.compose.ui)
+    implementation(libs.googleid)
     implementation(libs.compose.uiToolingPreview)
+    implementation(libs.ktor.client.core)
 }
 
 android {
@@ -21,6 +29,14 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
+        buildConfigField(
+            "String",
+            "TWINTE_GOOGLE_SERVER_CLIENT_ID",
+            "\"${googleServerClientId()}\"",
+        )
+    }
+    buildFeatures {
+        buildConfig = true
     }
     packaging {
         resources {
@@ -35,6 +51,22 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
+    }
+}
+
+fun googleServerClientId(): String =
+    providers.gradleProperty("twinteGoogleServerClientId")
+        .orElse(providers.environmentVariable("TWINTE_GOOGLE_SERVER_CLIENT_ID"))
+        .orElse(providers.provider { localProperty("twinteGoogleServerClientId") })
+        .get()
+        .replace("\"", "\\\"")
+
+fun localProperty(name: String): String {
+    val localPropertiesFile = rootProject.layout.projectDirectory.file("local.properties").asFile
+    if (!localPropertiesFile.isFile) return ""
+
+    return localPropertiesFile.inputStream().use { input ->
+        Properties().apply { load(input) }.getProperty(name).orEmpty()
     }
 }
 
