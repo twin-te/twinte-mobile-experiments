@@ -1,4 +1,4 @@
-rootProject.name = "twinte-mobile-exprements"
+rootProject.name = "twinte-mobile-experiments"
 enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
 
 pluginManagement {

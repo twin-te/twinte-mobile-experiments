@@ -11,7 +11,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		70AB9C9EB59720A999E6B175 /* twinte-mobile-exprements.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = twinte-mobile-exprements.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		70AB9C9EB59720A999E6B175 /* twinte-mobile-experiments.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = twinte-mobile-experiments.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -64,7 +64,7 @@
 		73238C979C3FD81DCD7BAAB7 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				70AB9C9EB59720A999E6B175 /* twinte-mobile-exprements.app */,
+				70AB9C9EB59720A999E6B175 /* twinte-mobile-experiments.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -93,7 +93,7 @@
 				5B5C5F0B2F7A4A9A8D6A2F01 /* GoogleSignIn */,
 			);
 			productName = iosApp;
-			productReference = 70AB9C9EB59720A999E6B175 /* twinte-mobile-exprements.app */;
+			productReference = 70AB9C9EB59720A999E6B175 /* twinte-mobile-experiments.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
