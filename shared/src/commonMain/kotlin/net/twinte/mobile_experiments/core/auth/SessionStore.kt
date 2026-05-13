@@ -10,6 +10,33 @@ interface SessionStore {
     suspend fun clearSessionId()
 }
 
+interface SecureKeyValueStore {
+    suspend fun getString(key: String): String?
+
+    suspend fun putString(key: String, value: String)
+
+    suspend fun remove(key: String)
+}
+
+class SecureKeyValueStoreSessionStore(
+    private val keyValueStore: SecureKeyValueStore,
+) : SessionStore {
+    override suspend fun getSessionId(): String? =
+        keyValueStore.getString(SessionIdKey)
+
+    override suspend fun saveSessionId(sessionId: String) {
+        keyValueStore.putString(SessionIdKey, sessionId)
+    }
+
+    override suspend fun clearSessionId() {
+        keyValueStore.remove(SessionIdKey)
+    }
+
+    private companion object {
+        const val SessionIdKey = "session_id"
+    }
+}
+
 class MemorySessionStore(
     initialSessionId: String? = null,
 ) : SessionStore {

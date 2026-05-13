@@ -2,6 +2,8 @@ package net.twinte.mobile_experiments.core.auth
 
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.plugins.cookies.AcceptAllCookiesStorage
+import io.ktor.client.plugins.cookies.HttpCookies
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
@@ -52,7 +54,11 @@ class AuthRepositoryTest {
         }
         val repository = AuthRepository(
             sessionStore = store,
-            httpClient = HttpClient(engine),
+            httpClient = HttpClient(engine) {
+                install(HttpCookies) {
+                    storage = AcceptAllCookiesStorage()
+                }
+            },
         )
 
         val session = repository.signInWithGoogleIdToken("id-token")

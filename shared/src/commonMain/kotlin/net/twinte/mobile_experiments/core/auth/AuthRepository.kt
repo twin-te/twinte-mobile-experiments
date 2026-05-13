@@ -1,10 +1,10 @@
 package net.twinte.mobile_experiments.core.auth
 
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.cookies.cookies
+import io.ktor.client.plugins.cookies.get
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
-import io.ktor.client.statement.HttpResponse
-import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.Url
 import net.twinte.mobile_experiments.core.api.ktor.KtorApiException
@@ -56,9 +56,7 @@ class AuthRepository(
             parameter("token", idToken)
             parameter("redirect_url", appBaseUrl.toString())
         }
-        response.sessionId()?.let {
-            return it
-        }
+        httpClient.cookies(appBaseUrl)[SessionCookieName]?.value?.let { return it }
         throw KtorApiException(response.status, "Session cookie is missing")
     }
 }
@@ -69,17 +67,3 @@ data class AuthSession(
 )
 
 private const val SessionCookieName = "twinte_session"
-
-private fun HttpResponse.sessionId(): String? =
-    headers.getAll(HttpHeaders.SetCookie)
-        .orEmpty()
-        .firstNotNullOfOrNull(::parseSessionCookie)
-
-private fun parseSessionCookie(setCookie: String): String? =
-    setCookie
-        .split(';')
-        .firstOrNull()
-        ?.trim()
-        ?.takeIf { it.startsWith("$SessionCookieName=") }
-        ?.substringAfter('=')
-        ?.takeIf { it.isNotBlank() }

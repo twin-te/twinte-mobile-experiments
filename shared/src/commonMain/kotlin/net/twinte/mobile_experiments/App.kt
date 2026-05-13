@@ -30,6 +30,7 @@ import net.twinte.mobile_experiments.core.api.ktor.KtorApiException
 import net.twinte.mobile_experiments.core.api.ktor.rememberTwinteHttpClient
 import net.twinte.mobile_experiments.core.auth.AuthRepository
 import net.twinte.mobile_experiments.core.auth.AuthSession
+import net.twinte.mobile_experiments.core.auth.SessionStore
 import net.twinte.mobile_experiments.core.auth.rememberSessionStore
 import net.twinte.mobile_experiments.core.domain.User
 
@@ -49,8 +50,8 @@ object UnavailableGoogleIdTokenProvider : GoogleIdTokenProvider {
 @Preview
 fun App(
     googleIdTokenProvider: GoogleIdTokenProvider = UnavailableGoogleIdTokenProvider,
+    sessionStore: SessionStore = rememberSessionStore(),
 ) {
-    val sessionStore = rememberSessionStore()
     val httpClient = rememberTwinteHttpClient()
     val authRepository = remember(sessionStore, httpClient) {
         AuthRepository(

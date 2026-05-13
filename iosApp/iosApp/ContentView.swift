@@ -5,7 +5,8 @@ import ComposeApp
 struct ComposeView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UIViewController {
         MainViewControllerKt.MainViewController(
-            googleIdTokenProvider: IOSGoogleIdTokenProvider()
+            googleIdTokenProvider: IOSGoogleIdTokenProvider(),
+            sessionStore: IOSKeychainSessionStore()
         )
     }
 
@@ -18,5 +19,4 @@ struct ContentView: View {
             .ignoresSafeArea()
     }
 }
-
 
