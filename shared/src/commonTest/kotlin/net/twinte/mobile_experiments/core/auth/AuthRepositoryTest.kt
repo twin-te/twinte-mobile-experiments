@@ -2,12 +2,13 @@ package net.twinte.mobile_experiments.core.auth
 
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
-import io.ktor.client.plugins.cookies.AcceptAllCookiesStorage
 import io.ktor.client.plugins.cookies.HttpCookies
 import io.ktor.client.engine.mock.respond
+import io.ktor.http.Cookie
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.Url
 import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
 import net.twinte.api.auth.v1.GetMeResponse
@@ -54,11 +55,7 @@ class AuthRepositoryTest {
         }
         val repository = AuthRepository(
             sessionStore = store,
-            httpClient = HttpClient(engine) {
-                install(HttpCookies) {
-                    storage = AcceptAllCookiesStorage()
-                }
-            },
+            httpClient = HttpClient(engine),
         )
 
         val session = repository.signInWithGoogleIdToken("id-token")
@@ -66,6 +63,39 @@ class AuthRepositoryTest {
         assertEquals("session-id", session.sessionId)
         assertEquals("user-id", session.user.id)
         assertEquals("session-id", store.getSessionId())
+    }
+
+    @Test
+    fun signInWithGoogleIdTokenIgnoresStoredCookiesWhenResponseHasNoSessionCookie() = runTest {
+        val store = MemorySessionStore()
+        val repository = AuthRepository(
+            sessionStore = store,
+            httpClient = HttpClient(
+                MockEngine { request ->
+                    when (request.url.encodedPath) {
+                        "/auth/v4/google/idToken" -> respond(
+                            content = "",
+                            status = HttpStatusCode.Found,
+                        )
+                        else -> error("Unexpected request: ${request.url}")
+                    }
+                },
+            ) {
+                install(HttpCookies) {
+                    default {
+                        addCookie(
+                            Url("https://app.twinte.net"),
+                            Cookie("twinte_session", "old-session-id"),
+                        )
+                    }
+                }
+            },
+        )
+
+        assertFailsWith<KtorApiException> {
+            repository.signInWithGoogleIdToken("id-token")
+        }
+        assertNull(store.getSessionId())
     }
 
     @Test

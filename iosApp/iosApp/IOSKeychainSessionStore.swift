@@ -49,13 +49,22 @@ final class IOSKeychainSessionStore: NSObject, SessionStore {
     }
 
     private func saveSessionId(_ sessionId: String) throws {
-        try deleteSessionId()
-        var query = keychainQuery()
-        query[kSecValueData as String] = Data(sessionId.utf8)
+        let attributes = [
+            kSecValueData as String: Data(sessionId.utf8),
+        ]
+        let updateStatus = SecItemUpdate(keychainQuery() as CFDictionary, attributes as CFDictionary)
+        if updateStatus == errSecSuccess {
+            return
+        }
+        guard updateStatus == errSecItemNotFound else {
+            throw KeychainError.unexpectedStatus(updateStatus)
+        }
 
-        let status = SecItemAdd(query as CFDictionary, nil)
-        guard status == errSecSuccess else {
-            throw KeychainError.unexpectedStatus(status)
+        var addQuery = keychainQuery()
+        addQuery[kSecValueData as String] = Data(sessionId.utf8)
+        let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+        guard addStatus == errSecSuccess else {
+            throw KeychainError.unexpectedStatus(addStatus)
         }
     }
 

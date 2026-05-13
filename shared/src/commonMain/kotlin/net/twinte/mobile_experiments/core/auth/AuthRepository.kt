@@ -1,12 +1,12 @@
 package net.twinte.mobile_experiments.core.auth
 
 import io.ktor.client.HttpClient
-import io.ktor.client.plugins.cookies.cookies
-import io.ktor.client.plugins.cookies.get
 import io.ktor.client.request.get
 import io.ktor.client.request.parameter
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.Url
+import io.ktor.http.parseServerSetCookieHeader
 import net.twinte.mobile_experiments.core.api.ktor.KtorApiException
 import net.twinte.mobile_experiments.core.api.ktor.KtorAuthApi
 import net.twinte.mobile_experiments.core.api.ktor.TwinteSession
@@ -56,7 +56,17 @@ class AuthRepository(
             parameter("token", idToken)
             parameter("redirect_url", appBaseUrl.toString())
         }
-        httpClient.cookies(appBaseUrl)[SessionCookieName]?.value?.let { return it }
+        response.headers.getAll(HttpHeaders.SetCookie)
+            .orEmpty()
+            .mapNotNull { header ->
+                runCatching {
+                    parseServerSetCookieHeader(header)
+                }.getOrNull()
+            }
+            .firstOrNull { it.name == SessionCookieName }
+            ?.value
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { return it }
         throw KtorApiException(response.status, "Session cookie is missing")
     }
 }

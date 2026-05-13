@@ -1,13 +1,14 @@
 package net.twinte.mobile_experiments.core.auth
 
 import android.content.Context
-import android.content.SharedPreferences
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -30,19 +31,33 @@ private class AndroidSecureKeyValueStore(
     private val preferences = context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
 
     override suspend fun getString(key: String): String? =
-        preferences.getString(key, null)
-            ?.let(::decrypt)
+        withContext(Dispatchers.IO) {
+            preferences.getString(key, null)
+                ?.let(::decrypt)
+        }
 
     override suspend fun putString(key: String, value: String) {
-        preferences.edit()
-            .putString(key, encrypt(value))
-            .commit()
+        withContext(Dispatchers.IO) {
+            check(
+                preferences.edit()
+                    .putString(key, encrypt(value))
+                    .commit(),
+            ) {
+                "Failed to persist secure value"
+            }
+        }
     }
 
     override suspend fun remove(key: String) {
-        preferences.edit()
-            .remove(key)
-            .commit()
+        withContext(Dispatchers.IO) {
+            check(
+                preferences.edit()
+                    .remove(key)
+                    .commit(),
+            ) {
+                "Failed to remove secure value"
+            }
+        }
     }
 
     private fun encrypt(value: String): String {
