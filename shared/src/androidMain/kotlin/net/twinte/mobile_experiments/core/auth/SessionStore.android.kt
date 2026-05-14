@@ -29,7 +29,7 @@ actual fun rememberSessionStore(): SessionStore {
 private class AndroidSecureKeyValueStore(
     context: Context,
 ) : SecureKeyValueStore {
-    private val preferences = context.getSharedPreferences(PreferencesName, Context.MODE_PRIVATE)
+    private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
     override suspend fun getString(key: String): String? =
         withContext(Dispatchers.IO) {
@@ -54,7 +54,7 @@ private class AndroidSecureKeyValueStore(
     }
 
     private fun encrypt(value: String): String {
-        val cipher = Cipher.getInstance(Transformation)
+        val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, secretKey())
         val encryptedBytes = cipher.doFinal(value.encodeToByteArray())
         return "${cipher.iv.base64()}:${encryptedBytes.base64()}"
@@ -64,23 +64,23 @@ private class AndroidSecureKeyValueStore(
         val (encodedIv, encodedCipherText) = value.split(':', limit = 2).takeIf { it.size == 2 }
             ?: return null
         return runCatching {
-            val cipher = Cipher.getInstance(Transformation)
-            cipher.init(Cipher.DECRYPT_MODE, secretKey(), GCMParameterSpec(GcmTagLengthBits, encodedIv.base64Bytes()))
+            val cipher = Cipher.getInstance(TRANSFORMATION)
+            cipher.init(Cipher.DECRYPT_MODE, secretKey(), GCMParameterSpec(GCM_TAG_LENGTH_BITS, encodedIv.base64Bytes()))
             cipher.doFinal(encodedCipherText.base64Bytes()).decodeToString()
         }.getOrNull()
     }
 
     private fun secretKey(): SecretKey {
-        val keyStore = KeyStore.getInstance(AndroidKeyStoreName).apply {
+        val keyStore = KeyStore.getInstance(ANDROID_KEY_STORE_NAME).apply {
             load(null)
         }
-        (keyStore.getEntry(KeyAlias, null) as? KeyStore.SecretKeyEntry)?.let {
+        (keyStore.getEntry(KEY_ALIAS, null) as? KeyStore.SecretKeyEntry)?.let {
             return it.secretKey
         }
 
-        val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, AndroidKeyStoreName)
+        val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEY_STORE_NAME)
         val keySpec = KeyGenParameterSpec.Builder(
-            KeyAlias,
+            KEY_ALIAS,
             KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT,
         )
             .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
@@ -92,11 +92,11 @@ private class AndroidSecureKeyValueStore(
     }
 
     private companion object {
-        const val AndroidKeyStoreName = "AndroidKeyStore"
-        const val GcmTagLengthBits = 128
-        const val KeyAlias = "net.twinte.mobile_experiments.session_store"
-        const val PreferencesName = "twinte_auth"
-        const val Transformation = "AES/GCM/NoPadding"
+        const val ANDROID_KEY_STORE_NAME = "AndroidKeyStore"
+        const val GCM_TAG_LENGTH_BITS = 128
+        const val KEY_ALIAS = "net.twinte.mobile_experiments.session_store"
+        const val PREFERENCES_NAME = "twinte_auth"
+        const val TRANSFORMATION = "AES/GCM/NoPadding"
     }
 }
 
