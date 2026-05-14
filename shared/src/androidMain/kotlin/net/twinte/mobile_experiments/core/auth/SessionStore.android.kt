@@ -7,13 +7,14 @@ import android.util.Base64
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import androidx.core.content.edit
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 actual fun rememberSessionStore(): SessionStore {
@@ -38,24 +39,16 @@ private class AndroidSecureKeyValueStore(
 
     override suspend fun putString(key: String, value: String) {
         withContext(Dispatchers.IO) {
-            check(
-                preferences.edit()
-                    .putString(key, encrypt(value))
-                    .commit(),
-            ) {
-                "Failed to persist secure value"
+            preferences.edit(commit = true) {
+                putString(key, encrypt(value))
             }
         }
     }
 
     override suspend fun remove(key: String) {
         withContext(Dispatchers.IO) {
-            check(
-                preferences.edit()
-                    .remove(key)
-                    .commit(),
-            ) {
-                "Failed to remove secure value"
+            preferences.edit(commit = true) {
+                remove(key)
             }
         }
     }
