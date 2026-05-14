@@ -1,18 +1,9 @@
+val rootVersionCatalog = settingsDir.parentFile.resolve("gradle/libs.versions.toml")
+
 dependencyResolutionManagement {
-    repositories {
-        google {
-            mavenContent {
-                includeGroupAndSubgroups("androidx")
-                includeGroupAndSubgroups("com.android")
-                includeGroupAndSubgroups("com.google")
-            }
-        }
-        mavenCentral()
-        gradlePluginPortal()
-    }
     versionCatalogs {
         create("libs") {
-            from(files("../gradle/libs.versions.toml"))
+            from(files(rootVersionCatalog))
         }
     }
 }
