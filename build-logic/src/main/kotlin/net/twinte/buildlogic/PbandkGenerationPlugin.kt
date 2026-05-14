@@ -31,6 +31,8 @@ class PbandkGenerationPlugin : Plugin<Project> {
 
         val generatedPbandkDirectory = layout.buildDirectory.dir("generated/source/pbandk/commonMain")
         val generatePbandk = tasks.register("generatePbandk", GeneratePbandkTask::class.java) {
+            group = "generation"
+            description = "Generates Kotlin sources from commonMain proto files using pbandk."
             protoRoot.set(layout.projectDirectory.dir("src/commonMain/proto"))
             protoFiles.from(fileTree(layout.projectDirectory.dir("src/commonMain/proto")) {
                 include("**/*.proto")
@@ -44,11 +46,8 @@ class PbandkGenerationPlugin : Plugin<Project> {
         plugins.withId("org.jetbrains.kotlin.multiplatform") {
             extensions.configure(KotlinMultiplatformExtension::class.java) {
                 sourceSets.named("commonMain") {
-                    kotlin.srcDir(generatedPbandkDirectory)
+                    kotlin.srcDir(generatePbandk.flatMap { it.outputDirectory })
                 }
-            }
-            tasks.matching { it.name.startsWith("compile") }.configureEach {
-                dependsOn(generatePbandk)
             }
         }
     }

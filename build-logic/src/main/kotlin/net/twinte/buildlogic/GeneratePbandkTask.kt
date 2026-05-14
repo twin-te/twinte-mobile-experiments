@@ -42,17 +42,11 @@ abstract class GeneratePbandkTask : DefaultTask() {
         output.deleteRecursively()
         output.mkdirs()
 
-        val protoc = protocExecutable.singleFile
+        val protoc = temporaryDir.resolve(if (isWindows()) "protoc.exe" else "protoc")
+        protocExecutable.singleFile.copyTo(protoc, overwrite = true)
         protoc.setExecutable(true)
 
-        val plugin = temporaryDir.resolve(if (isWindows()) "protoc-gen-pbandk.bat" else "protoc-gen-pbandk")
-        plugin.parentFile.mkdirs()
-        if (isWindows()) {
-            plugin.writeText("@echo off\r\njava -jar \"${pbandkPluginJar.singleFile.absolutePath}\" %*\r\n")
-        } else {
-            plugin.writeText("#!/usr/bin/env sh\nexec java -jar '${pbandkPluginJar.singleFile.absolutePath}' \"\$@\"\n")
-            plugin.setExecutable(true)
-        }
+        val plugin = pbandkPluginExecutable()
 
         val root = protoRoot.get().asFile
         val relativeProtoFiles = protoFiles.files
@@ -72,4 +66,16 @@ abstract class GeneratePbandkTask : DefaultTask() {
 
     private fun isWindows(): Boolean =
         System.getProperty("os.name").lowercase(Locale.ROOT).contains("windows")
+
+    private fun pbandkPluginExecutable() =
+        if (isWindows()) {
+            temporaryDir.resolve("protoc-gen-pbandk.bat").also { plugin ->
+                plugin.writeText("@echo off\r\njava -jar \"${pbandkPluginJar.singleFile.absolutePath}\" %*\r\n")
+            }
+        } else {
+            temporaryDir.resolve("protoc-gen-pbandk").also { plugin ->
+                pbandkPluginJar.singleFile.copyTo(plugin, overwrite = true)
+                plugin.setExecutable(true)
+            }
+        }
 }
