@@ -22,18 +22,18 @@ class SecureKeyValueStoreSessionStore(
     private val keyValueStore: SecureKeyValueStore,
 ) : SessionStore {
     override suspend fun getSessionId(): String? =
-        keyValueStore.getString(SessionIdKey)
+        keyValueStore.getString(SESSION_ID_KEY)
 
     override suspend fun saveSessionId(sessionId: String) {
-        keyValueStore.putString(SessionIdKey, sessionId)
+        keyValueStore.putString(SESSION_ID_KEY, sessionId)
     }
 
     override suspend fun clearSessionId() {
-        keyValueStore.remove(SessionIdKey)
+        keyValueStore.remove(SESSION_ID_KEY)
     }
 
     private companion object {
-        const val SessionIdKey = "session_id"
+        const val SESSION_ID_KEY = "session_id"
     }
 }
 
