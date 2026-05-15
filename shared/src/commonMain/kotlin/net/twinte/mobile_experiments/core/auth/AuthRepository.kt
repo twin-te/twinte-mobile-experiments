@@ -1,74 +1,42 @@
 package net.twinte.mobile_experiments.core.auth
 
-import io.ktor.client.HttpClient
-import io.ktor.client.request.get
-import io.ktor.client.request.parameter
-import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
-import io.ktor.http.Url
-import io.ktor.http.parseServerSetCookieHeader
-import net.twinte.mobile_experiments.core.api.ktor.KtorApiException
-import net.twinte.mobile_experiments.core.api.ktor.KtorAuthApi
-import net.twinte.mobile_experiments.core.api.ktor.TwinteSession
+import net.twinte.mobile_experiments.core.api.AuthApi
+import net.twinte.mobile_experiments.core.api.TwinteApiException
 import net.twinte.mobile_experiments.core.domain.User
 
 class AuthRepository(
     private val sessionStore: SessionStore,
-    private val httpClient: HttpClient,
-    private val appBaseUrl: Url = Url("https://app.twinte.net"),
-    private val apiBaseUrl: Url = Url("https://app.twinte.net/api/v4"),
+    private val authApi: AuthApi,
+    private val googleSessionApi: GoogleSessionApi,
 ) {
     suspend fun restoreSession(): AuthSession? {
-        val sessionId = sessionStore.getSessionId() ?: return null
+        val session = sessionStore.getSession() ?: return null
         return runCatching {
-            AuthSession(sessionId, getMe(sessionId))
+            AuthSession(session.sessionId, authApi.getMe(session))
         }.onFailure { error ->
-            if (error is KtorApiException && error.status == HttpStatusCode.Unauthorized) {
+            if (error is TwinteApiException && error.status == HttpStatusCode.Unauthorized) {
                 sessionStore.clearSessionId()
             }
         }.getOrThrow()
     }
 
     suspend fun signInWithGoogleIdToken(idToken: String): AuthSession {
-        val sessionId = fetchSessionIdWithGoogleIdToken(idToken)
-        sessionStore.saveSessionId(sessionId)
-        return AuthSession(sessionId, getMe(sessionId))
+        val session = googleSessionApi.createSessionWithIdToken(idToken)
+        sessionStore.saveSessionId(session.sessionId)
+        return AuthSession(session.sessionId, authApi.getMe(session))
     }
 
     suspend fun getMe(): User {
-        val sessionId = requireNotNull(sessionStore.getSessionId()) { "No session" }
-        return getMe(sessionId)
+        return authApi.getMe(requireSession())
     }
 
     suspend fun clearSession() {
         sessionStore.clearSessionId()
     }
 
-    private suspend fun getMe(sessionId: String): User =
-        KtorAuthApi(
-            apiBaseUrl = apiBaseUrl,
-            session = TwinteSession(sessionId),
-            httpClient = httpClient,
-        ).getMe()
-
-    private suspend fun fetchSessionIdWithGoogleIdToken(idToken: String): String {
-        val response = httpClient.get("${appBaseUrl}/auth/v4/google/idToken") {
-            parameter("token", idToken)
-            parameter("redirect_url", appBaseUrl.toString())
-        }
-        response.headers.getAll(HttpHeaders.SetCookie)
-            .orEmpty()
-            .mapNotNull { header ->
-                runCatching {
-                    parseServerSetCookieHeader(header)
-                }.getOrNull()
-            }
-            .firstOrNull { it.name == SessionCookieName }
-            ?.value
-            ?.takeIf { it.isNotEmpty() }
-            ?.let { return it }
-        throw KtorApiException(response.status, "Session cookie is missing")
-    }
+    private suspend fun requireSession(): TwinteSession =
+        requireNotNull(sessionStore.getSession()) { "No session" }
 }
 
 data class AuthSession(
@@ -76,4 +44,5 @@ data class AuthSession(
     val user: User,
 )
 
-private const val SessionCookieName = "twinte_session"
+private suspend fun SessionStore.getSession(): TwinteSession? =
+    getSessionId()?.let(::TwinteSession)

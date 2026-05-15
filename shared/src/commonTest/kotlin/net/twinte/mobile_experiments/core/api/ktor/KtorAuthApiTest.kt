@@ -13,6 +13,7 @@ import net.twinte.api.auth.v1.Provider
 import net.twinte.api.auth.v1.User as ApiUser
 import net.twinte.api.auth.v1.UserAuthentication as ApiUserAuthentication
 import net.twinte.api.shared.UUID
+import net.twinte.mobile_experiments.core.auth.TwinteSession
 import net.twinte.mobile_experiments.core.domain.AuthProvider
 import pbandk.ExperimentalProtoJson
 import pbandk.json.encodeToJsonString
@@ -46,11 +47,10 @@ class KtorAuthApiTest {
             )
         }
         val api = KtorAuthApi(
-            session = TwinteSession("session-id"),
             httpClient = HttpClient(engine),
         )
 
-        val user = api.getMe()
+        val user = api.getMe(TwinteSession("session-id"))
 
         assertEquals("user-id", user.id)
         assertEquals(AuthProvider.Google, user.authentications.single().provider)

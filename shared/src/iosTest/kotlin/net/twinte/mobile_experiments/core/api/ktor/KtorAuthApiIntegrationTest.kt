@@ -2,6 +2,8 @@ package net.twinte.mobile_experiments.core.api.ktor
 
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.test.runTest
+import net.twinte.mobile_experiments.core.api.TwinteApiException
+import net.twinte.mobile_experiments.core.auth.TwinteSession
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -16,23 +18,22 @@ class KtorAuthApiIntegrationTest {
         val sessionId = env("TWINTE_SESSION_ID")
         val api = KtorAuthApi(
             apiBaseUrl = env("TWINTE_API_URL") ?: "https://app.twinte.net/api/v4",
-            session = sessionId?.let {
-                TwinteSession(
-                    sessionId = it,
-                    cookieName = env("TWINTE_SESSION_COOKIE_NAME") ?: "twinte_session",
-                )
-            },
         )
 
         if (sessionId == null) {
-            val error = assertFailsWith<KtorApiException> {
-                api.getMe()
+            val error = assertFailsWith<TwinteApiException> {
+                api.getMe(TwinteSession("missing-session-id"))
             }
             assertEquals(HttpStatusCode.Unauthorized, error.status)
             return@runTest
         }
 
-        val user = api.getMe()
+        val user = api.getMe(
+            TwinteSession(
+                sessionId = sessionId,
+                cookieName = env("TWINTE_SESSION_COOKIE_NAME") ?: "twinte_session",
+            ),
+        )
         assertTrue(user.id.isNotBlank())
     }
 }

@@ -26,7 +26,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.launch
-import net.twinte.mobile_experiments.core.api.ktor.KtorApiException
+import net.twinte.mobile_experiments.core.api.TwinteApiException
+import net.twinte.mobile_experiments.core.api.ktor.KtorAuthApi
+import net.twinte.mobile_experiments.core.api.ktor.KtorGoogleSessionApi
+import net.twinte.mobile_experiments.core.api.ktor.rememberTwinteLoginHttpClient
 import net.twinte.mobile_experiments.core.api.ktor.rememberTwinteHttpClient
 import net.twinte.mobile_experiments.core.auth.AuthRepository
 import net.twinte.mobile_experiments.core.auth.AuthSession
@@ -53,10 +56,12 @@ fun App(
     sessionStore: SessionStore = rememberSessionStore(),
 ) {
     val httpClient = rememberTwinteHttpClient()
-    val authRepository = remember(sessionStore, httpClient) {
+    val loginHttpClient = rememberTwinteLoginHttpClient()
+    val authRepository = remember(sessionStore, httpClient, loginHttpClient) {
         AuthRepository(
             sessionStore = sessionStore,
-            httpClient = httpClient,
+            authApi = KtorAuthApi(httpClient = httpClient),
+            googleSessionApi = KtorGoogleSessionApi(httpClient = loginHttpClient),
         )
     }
 
@@ -212,7 +217,7 @@ private fun GoogleLoginScreen(
 
 private fun Throwable.toStatusMessage(): String =
     when (this) {
-        is KtorApiException -> when (status) {
+        is TwinteApiException -> when (status) {
             HttpStatusCode.Unauthorized -> "Session is not authorized"
             else -> "API error: $status"
         }
