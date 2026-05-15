@@ -31,11 +31,12 @@ import net.twinte.mobile_experiments.core.api.ktor.KtorAuthApi
 import net.twinte.mobile_experiments.core.api.ktor.KtorGoogleSessionApi
 import net.twinte.mobile_experiments.core.api.ktor.rememberTwinteLoginHttpClient
 import net.twinte.mobile_experiments.core.api.ktor.rememberTwinteHttpClient
+import net.twinte.mobile_experiments.core.auth.AuthFailure
 import net.twinte.mobile_experiments.core.auth.AuthRepository
 import net.twinte.mobile_experiments.core.auth.AuthSession
+import net.twinte.mobile_experiments.core.auth.AuthState
 import net.twinte.mobile_experiments.core.auth.SessionStore
 import net.twinte.mobile_experiments.core.auth.rememberSessionStore
-import net.twinte.mobile_experiments.core.domain.User
 
 interface GoogleIdTokenProvider {
     val isConfigured: Boolean
@@ -84,77 +85,67 @@ private fun GoogleLoginScreen(
     authRepository: AuthRepository,
 ) {
     val scope = rememberCoroutineScope()
-    var isLoading by remember { mutableStateOf(false) }
-    var sessionId by remember { mutableStateOf<String?>(null) }
-    var user by remember { mutableStateOf<User?>(null) }
-    var message by remember {
+    var uiState by remember(googleIdTokenProvider.isConfigured) {
         mutableStateOf(
-            if (googleIdTokenProvider.isConfigured) {
-                "Not signed in"
-            } else {
-                "Google client ID is not configured"
-            },
+            AuthUiState(
+                authState = AuthState.Unknown,
+                message = googleIdTokenProvider.initialMessage(),
+            ),
         )
     }
 
     fun applySession(session: AuthSession) {
-        sessionId = session.sessionId
-        user = session.user
-        message = "Signed in"
+        uiState = uiState.copy(
+            authState = AuthState.LoggedIn(session.user),
+            sessionId = session.sessionId,
+            message = "Signed in",
+            isLoading = false,
+        )
     }
 
     LaunchedEffect(authRepository) {
-        isLoading = true
-        message = "Restoring session..."
+        uiState = uiState.copy(isLoading = true, message = "Restoring session...")
         try {
             authRepository.restoreSession()?.let(::applySession)
                 ?: run {
-                    message = if (googleIdTokenProvider.isConfigured) {
-                        "Not signed in"
-                    } else {
-                        "Google client ID is not configured"
-                    }
+                    uiState = uiState.copy(
+                        authState = AuthState.LoggedOut,
+                        sessionId = null,
+                        message = googleIdTokenProvider.initialMessage(),
+                        isLoading = false,
+                    )
                 }
         } catch (error: Throwable) {
-            user = null
-            sessionId = null
-            message = error.toStatusMessage()
-        } finally {
-            isLoading = false
+            uiState = uiState.signedOut(error.toAuthFailure().toStatusMessage())
         }
     }
 
     fun refreshMe() {
         scope.launch {
-            isLoading = true
-            message = "Checking session..."
+            uiState = uiState.copy(isLoading = true, message = "Checking session...")
             try {
                 val currentUser = authRepository.getMe()
-                user = currentUser
-                message = "Signed in"
+                uiState = uiState.copy(
+                    authState = AuthState.LoggedIn(currentUser),
+                    message = "Signed in",
+                    isLoading = false,
+                )
             } catch (error: Throwable) {
-                user = null
-                message = error.toStatusMessage()
-            } finally {
-                isLoading = false
+                uiState = uiState.signedOut(error.toAuthFailure().toStatusMessage())
             }
         }
     }
 
     fun signInWithGoogle() {
         scope.launch {
-            isLoading = true
-            message = "Opening Google..."
+            uiState = uiState.copy(isLoading = true, message = "Opening Google...")
             try {
                 val idToken = googleIdTokenProvider.requestIdToken()
                     ?: error("Google ID token is missing")
-                message = "Creating session..."
+                uiState = uiState.copy(message = "Creating session...")
                 applySession(authRepository.signInWithGoogleIdToken(idToken))
             } catch (error: Throwable) {
-                user = null
-                message = error.toStatusMessage()
-            } finally {
-                isLoading = false
+                uiState = uiState.signedOut(error.toAuthFailure().toStatusMessage())
             }
         }
     }
@@ -167,45 +158,43 @@ private fun GoogleLoginScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Twin:te Auth", style = MaterialTheme.typography.headlineMedium)
-        Text(message, style = MaterialTheme.typography.bodyLarge)
-        sessionId?.let {
+        Text(uiState.message, style = MaterialTheme.typography.bodyLarge)
+        uiState.sessionId?.let {
             Text("Session: ${it.take(8)}...", style = MaterialTheme.typography.bodyMedium)
         }
-        user?.let {
+        (uiState.authState as? AuthState.LoggedIn)?.user?.let {
             Text("User ID: ${it.id}", style = MaterialTheme.typography.bodyMedium)
             Text(
                 "Providers: ${it.authentications.joinToString { auth -> auth.provider.name }}",
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
-        if (isLoading) {
+        if (uiState.isLoading) {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
-                enabled = googleIdTokenProvider.isConfigured && !isLoading,
+                enabled = googleIdTokenProvider.isConfigured && !uiState.isLoading,
                 onClick = ::signInWithGoogle,
             ) {
                 Text("Google")
             }
             OutlinedButton(
-                enabled = !isLoading,
+                enabled = !uiState.isLoading,
                 onClick = ::refreshMe,
             ) {
                 Text("getMe")
             }
             OutlinedButton(
-                enabled = !isLoading,
+                enabled = !uiState.isLoading,
                 colors = ButtonDefaults.outlinedButtonColors(
                     contentColor = MaterialTheme.colorScheme.error,
                 ),
                 onClick = {
                     scope.launch {
                         authRepository.clearSession()
-                        sessionId = null
-                        user = null
-                        message = "Signed out locally"
+                        uiState = uiState.signedOut("Signed out locally")
                     }
                 },
             ) {
@@ -215,11 +204,41 @@ private fun GoogleLoginScreen(
     }
 }
 
-private fun Throwable.toStatusMessage(): String =
+private data class AuthUiState(
+    val authState: AuthState,
+    val sessionId: String? = null,
+    val message: String,
+    val isLoading: Boolean = false,
+)
+
+private fun AuthUiState.signedOut(message: String): AuthUiState =
+    copy(
+        authState = AuthState.LoggedOut,
+        sessionId = null,
+        message = message,
+        isLoading = false,
+    )
+
+private fun GoogleIdTokenProvider.initialMessage(): String =
+    if (isConfigured) {
+        "Not signed in"
+    } else {
+        "Google client ID is not configured"
+    }
+
+private fun Throwable.toAuthFailure(): AuthFailure =
     when (this) {
         is TwinteApiException -> when (status) {
-            HttpStatusCode.Unauthorized -> "Session is not authorized"
-            else -> "API error: $status"
+            HttpStatusCode.Unauthorized -> AuthFailure.Unauthenticated
+            else -> AuthFailure.Unexpected(this)
         }
-        else -> message ?: "Unknown error"
+        else -> AuthFailure.Unexpected(this)
+    }
+
+private fun AuthFailure.toStatusMessage(): String =
+    when (this) {
+        AuthFailure.Unauthenticated -> "Session is not authorized"
+        AuthFailure.Canceled -> "Canceled"
+        is AuthFailure.Network -> "Network error"
+        is AuthFailure.Unexpected -> cause?.message ?: "Unknown error"
     }
