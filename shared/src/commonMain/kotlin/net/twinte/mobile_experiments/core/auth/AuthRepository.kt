@@ -9,6 +9,7 @@ class AuthRepository(
     private val sessionStore: SessionStore,
     private val authApi: AuthApi,
     private val googleSessionApi: GoogleSessionApi,
+    private val appleSessionApi: AppleSessionApi,
 ) {
     suspend fun restoreSession(): AuthSession? {
         val session = sessionStore.getSession() ?: return null
@@ -23,6 +24,12 @@ class AuthRepository(
 
     suspend fun signInWithGoogleIdToken(idToken: String): AuthSession {
         val session = googleSessionApi.createSessionWithIdToken(idToken)
+        sessionStore.saveSessionId(session.sessionId)
+        return AuthSession(session.sessionId, authApi.getMe(session))
+    }
+
+    suspend fun signInWithAppleCredential(credential: AppleSignInCredential): AuthSession {
+        val session = appleSessionApi.createSessionWithCredential(credential)
         sessionStore.saveSessionId(session.sessionId)
         return AuthSession(session.sessionId, authApi.getMe(session))
     }

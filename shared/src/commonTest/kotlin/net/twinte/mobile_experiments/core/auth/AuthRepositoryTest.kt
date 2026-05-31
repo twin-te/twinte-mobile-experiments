@@ -18,10 +18,12 @@ class AuthRepositoryTest {
         val store = MemorySessionStore()
         val authApi = FakeAuthApi()
         val googleSessionApi = FakeGoogleSessionApi(TwinteSession("session-id"))
+        val appleSessionApi = FakeAppleSessionApi(TwinteSession("unused"))
         val repository = AuthRepository(
             sessionStore = store,
             authApi = authApi,
             googleSessionApi = googleSessionApi,
+            appleSessionApi = appleSessionApi,
         )
 
         val session = repository.signInWithGoogleIdToken("id-token")
@@ -34,6 +36,38 @@ class AuthRepositoryTest {
     }
 
     @Test
+    fun signInWithAppleCredentialSavesSessionAndFetchesUser() = runTest {
+        val store = MemorySessionStore()
+        val authApi = FakeAuthApi()
+        val appleSessionApi = FakeAppleSessionApi(TwinteSession("apple-session-id"))
+        val repository = AuthRepository(
+            sessionStore = store,
+            authApi = authApi,
+            googleSessionApi = FakeGoogleSessionApi(TwinteSession("unused")),
+            appleSessionApi = appleSessionApi,
+        )
+
+        val session = repository.signInWithAppleCredential(
+            AppleSignInCredential(
+                idToken = "apple-id-token",
+                authorizationCode = "apple-code",
+            ),
+        )
+
+        assertEquals("apple-session-id", session.sessionId)
+        assertEquals("user-id", session.user.id)
+        assertEquals("apple-session-id", store.getSessionId())
+        assertEquals(
+            AppleSignInCredential(
+                idToken = "apple-id-token",
+                authorizationCode = "apple-code",
+            ),
+            appleSessionApi.requestedCredential,
+        )
+        assertEquals(TwinteSession("apple-session-id"), authApi.lastSession)
+    }
+
+    @Test
     fun restoreSessionClearsStoredSessionOnUnauthorized() = runTest {
         val store = MemorySessionStore("stale-session-id")
         val authApi = FakeAuthApi(
@@ -43,6 +77,7 @@ class AuthRepositoryTest {
             sessionStore = store,
             authApi = authApi,
             googleSessionApi = FakeGoogleSessionApi(TwinteSession("unused")),
+            appleSessionApi = FakeAppleSessionApi(TwinteSession("unused")),
         )
 
         assertFailsWith<TwinteApiException> {
@@ -81,6 +116,18 @@ class AuthRepositoryTest {
 
         override suspend fun createSessionWithIdToken(idToken: String): TwinteSession {
             requestedIdToken = idToken
+            return session
+        }
+    }
+
+    private class FakeAppleSessionApi(
+        private val session: TwinteSession,
+    ) : AppleSessionApi {
+        var requestedCredential: AppleSignInCredential? = null
+            private set
+
+        override suspend fun createSessionWithCredential(credential: AppleSignInCredential): TwinteSession {
+            requestedCredential = credential
             return session
         }
     }

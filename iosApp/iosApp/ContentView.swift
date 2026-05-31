@@ -6,6 +6,7 @@ struct ComposeView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UIViewController {
         MainViewControllerKt.MainViewController(
             googleIdTokenProvider: IOSGoogleIdTokenProvider(),
+            appleSignInCredentialProvider: IOSAppleSignInCredentialProvider(),
             sessionStore: IOSKeychainSessionStore()
         )
     }
@@ -19,4 +20,3 @@ struct ContentView: View {
             .ignoresSafeArea()
     }
 }
-

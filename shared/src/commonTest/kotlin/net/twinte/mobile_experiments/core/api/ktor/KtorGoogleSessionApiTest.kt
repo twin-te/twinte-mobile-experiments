@@ -6,6 +6,7 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.cookies.HttpCookies
 import io.ktor.http.Cookie
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.Url
 import io.ktor.http.headersOf
@@ -19,9 +20,10 @@ class KtorGoogleSessionApiTest {
     @Test
     fun createSessionWithIdTokenReadsSessionCookieFromCurrentResponse() = runTest {
         val engine = MockEngine { request ->
+            assertEquals(HttpMethod.Post, request.method)
             assertEquals("/auth/v4/google/idToken", request.url.encodedPath)
-            assertEquals("id-token", request.url.parameters["token"])
-            assertEquals("https://app.twinte.net", request.url.parameters["redirect_url"])
+            assertEquals(null, request.url.parameters["token"])
+            assertEquals(null, request.url.parameters["redirect_url"])
             respond(
                 content = "",
                 status = HttpStatusCode.Found,

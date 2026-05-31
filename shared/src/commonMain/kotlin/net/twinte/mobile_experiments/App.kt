@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.launch
 import net.twinte.mobile_experiments.core.api.TwinteApiException
+import net.twinte.mobile_experiments.core.api.ktor.KtorAppleSessionApi
 import net.twinte.mobile_experiments.core.api.ktor.KtorAuthApi
 import net.twinte.mobile_experiments.core.api.ktor.KtorGoogleSessionApi
 import net.twinte.mobile_experiments.core.api.ktor.rememberTwinteLoginHttpClient
@@ -35,6 +36,7 @@ import net.twinte.mobile_experiments.core.auth.AuthFailure
 import net.twinte.mobile_experiments.core.auth.AuthRepository
 import net.twinte.mobile_experiments.core.auth.AuthSession
 import net.twinte.mobile_experiments.core.auth.AuthState
+import net.twinte.mobile_experiments.core.auth.AppleSignInCredential
 import net.twinte.mobile_experiments.core.auth.SessionStore
 import net.twinte.mobile_experiments.core.auth.rememberSessionStore
 
@@ -50,10 +52,23 @@ object UnavailableGoogleIdTokenProvider : GoogleIdTokenProvider {
     override suspend fun requestIdToken(): String? = null
 }
 
+interface AppleSignInCredentialProvider {
+    val isConfigured: Boolean
+
+    suspend fun requestCredential(): AppleSignInCredential?
+}
+
+object UnavailableAppleSignInCredentialProvider : AppleSignInCredentialProvider {
+    override val isConfigured: Boolean = false
+
+    override suspend fun requestCredential(): AppleSignInCredential? = null
+}
+
 @Composable
 @Preview
 fun App(
     googleIdTokenProvider: GoogleIdTokenProvider = UnavailableGoogleIdTokenProvider,
+    appleSignInCredentialProvider: AppleSignInCredentialProvider = UnavailableAppleSignInCredentialProvider,
     sessionStore: SessionStore = rememberSessionStore(),
 ) {
     val httpClient = rememberTwinteHttpClient()
@@ -63,6 +78,7 @@ fun App(
             sessionStore = sessionStore,
             authApi = KtorAuthApi(httpClient = httpClient),
             googleSessionApi = KtorGoogleSessionApi(httpClient = loginHttpClient),
+            appleSessionApi = KtorAppleSessionApi(httpClient = loginHttpClient),
         )
     }
 
@@ -71,8 +87,9 @@ fun App(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background,
         ) {
-            GoogleLoginScreen(
+            AuthScreen(
                 googleIdTokenProvider = googleIdTokenProvider,
+                appleSignInCredentialProvider = appleSignInCredentialProvider,
                 authRepository = authRepository,
             )
         }
@@ -80,16 +97,20 @@ fun App(
 }
 
 @Composable
-private fun GoogleLoginScreen(
+private fun AuthScreen(
     googleIdTokenProvider: GoogleIdTokenProvider,
+    appleSignInCredentialProvider: AppleSignInCredentialProvider,
     authRepository: AuthRepository,
 ) {
     val scope = rememberCoroutineScope()
-    var uiState by remember(googleIdTokenProvider.isConfigured) {
+    var uiState by remember(
+        googleIdTokenProvider.isConfigured,
+        appleSignInCredentialProvider.isConfigured,
+    ) {
         mutableStateOf(
             AuthUiState(
                 authState = AuthState.Unknown,
-                message = googleIdTokenProvider.initialMessage(),
+                message = initialMessage(googleIdTokenProvider, appleSignInCredentialProvider),
             ),
         )
     }
@@ -111,12 +132,26 @@ private fun GoogleLoginScreen(
                     uiState = uiState.copy(
                         authState = AuthState.LoggedOut,
                         sessionId = null,
-                        message = googleIdTokenProvider.initialMessage(),
+                        message = initialMessage(googleIdTokenProvider, appleSignInCredentialProvider),
                         isLoading = false,
                     )
                 }
         } catch (error: Throwable) {
             uiState = uiState.signedOut(error.toAuthFailure().toStatusMessage())
+        }
+    }
+
+    fun signInWithApple() {
+        scope.launch {
+            uiState = uiState.copy(isLoading = true, message = "Opening Apple...")
+            try {
+                val credential = appleSignInCredentialProvider.requestCredential()
+                    ?: error("Apple credential is missing")
+                uiState = uiState.copy(message = "Creating session...")
+                applySession(authRepository.signInWithAppleCredential(credential))
+            } catch (error: Throwable) {
+                uiState = uiState.signedOut(error.toAuthFailure().toStatusMessage())
+            }
         }
     }
 
@@ -180,6 +215,14 @@ private fun GoogleLoginScreen(
             ) {
                 Text("Google")
             }
+            Button(
+                enabled = appleSignInCredentialProvider.isConfigured && !uiState.isLoading,
+                onClick = ::signInWithApple,
+            ) {
+                Text("Apple")
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(
                 enabled = !uiState.isLoading,
                 onClick = ::refreshMe,
@@ -219,11 +262,14 @@ private fun AuthUiState.signedOut(message: String): AuthUiState =
         isLoading = false,
     )
 
-private fun GoogleIdTokenProvider.initialMessage(): String =
-    if (isConfigured) {
+private fun initialMessage(
+    googleIdTokenProvider: GoogleIdTokenProvider,
+    appleSignInCredentialProvider: AppleSignInCredentialProvider,
+): String =
+    if (googleIdTokenProvider.isConfigured || appleSignInCredentialProvider.isConfigured) {
         "Not signed in"
     } else {
-        "Google client ID is not configured"
+        "Login provider is not configured"
     }
 
 private fun Throwable.toAuthFailure(): AuthFailure =

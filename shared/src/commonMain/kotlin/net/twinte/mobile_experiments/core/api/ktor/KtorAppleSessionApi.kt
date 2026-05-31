@@ -2,15 +2,16 @@ package net.twinte.mobile_experiments.core.api.ktor
 
 import io.ktor.client.HttpClient
 import io.ktor.http.Url
-import net.twinte.mobile_experiments.core.auth.GoogleSessionApi
+import net.twinte.mobile_experiments.core.auth.AppleSessionApi
+import net.twinte.mobile_experiments.core.auth.AppleSignInCredential
 import net.twinte.mobile_experiments.core.auth.TwinteSession
 
-class KtorGoogleSessionApi(
+class KtorAppleSessionApi(
     private val appBaseUrl: Url = Url("https://app.twinte.net"),
     private val httpClient: HttpClient = HttpClient {
         followRedirects = false
     },
-) : GoogleSessionApi {
+) : AppleSessionApi {
     constructor(
         appBaseUrl: String,
         httpClient: HttpClient = HttpClient {
@@ -18,11 +19,12 @@ class KtorGoogleSessionApi(
         },
     ) : this(Url(appBaseUrl.trimEnd('/')), httpClient)
 
-    override suspend fun createSessionWithIdToken(idToken: String): TwinteSession =
+    override suspend fun createSessionWithCredential(credential: AppleSignInCredential): TwinteSession =
         createSessionWithIdToken(
             appBaseUrl = appBaseUrl,
             httpClient = httpClient,
-            providerPath = "google",
-            idToken = idToken,
+            providerPath = "apple",
+            idToken = credential.idToken,
+            authorizationCode = credential.authorizationCode,
         )
 }
