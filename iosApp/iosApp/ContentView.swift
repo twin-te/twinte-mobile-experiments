@@ -7,7 +7,8 @@ struct ComposeView: UIViewControllerRepresentable {
         MainViewControllerKt.MainViewController(
             googleIdTokenProvider: IOSGoogleIdTokenProvider(),
             appleSignInCredentialProvider: IOSAppleSignInCredentialProvider(),
-            sessionStore: IOSKeychainSessionStore()
+            sessionStore: IOSKeychainSessionStore(),
+            appBaseUrl: Bundle.main.nonEmptyInfoString(forKey: "TwinteAppBaseURL") ?? "https://app.twinte.net"
         )
     }
 

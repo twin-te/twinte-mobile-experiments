@@ -70,15 +70,17 @@ fun App(
     googleIdTokenProvider: GoogleIdTokenProvider = UnavailableGoogleIdTokenProvider,
     appleSignInCredentialProvider: AppleSignInCredentialProvider = UnavailableAppleSignInCredentialProvider,
     sessionStore: SessionStore = rememberSessionStore(),
+    appBaseUrl: String = "https://app.twinte.net",
 ) {
+    val normalizedAppBaseUrl = appBaseUrl.trimEnd('/').ifBlank { "https://app.twinte.net" }
     val httpClient = rememberTwinteHttpClient()
     val loginHttpClient = rememberTwinteLoginHttpClient()
-    val authRepository = remember(sessionStore, httpClient, loginHttpClient) {
+    val authRepository = remember(sessionStore, httpClient, loginHttpClient, normalizedAppBaseUrl) {
         AuthRepository(
             sessionStore = sessionStore,
-            authApi = KtorAuthApi(httpClient = httpClient),
-            googleSessionApi = KtorGoogleSessionApi(httpClient = loginHttpClient),
-            appleSessionApi = KtorAppleSessionApi(httpClient = loginHttpClient),
+            authApi = KtorAuthApi(apiBaseUrl = "$normalizedAppBaseUrl/api/v4", httpClient = httpClient),
+            googleSessionApi = KtorGoogleSessionApi(appBaseUrl = normalizedAppBaseUrl, httpClient = loginHttpClient),
+            appleSessionApi = KtorAppleSessionApi(appBaseUrl = normalizedAppBaseUrl, httpClient = loginHttpClient),
         )
     }
 

@@ -8,6 +8,8 @@
 	<string>$(GOOGLE_IOS_CLIENT_ID)</string>
 	<key>GIDServerClientID</key>
 	<string>$(GOOGLE_SERVER_CLIENT_ID)</string>
+	<key>TwinteAppBaseURL</key>
+	<string>$(APP_BASE_URL)</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

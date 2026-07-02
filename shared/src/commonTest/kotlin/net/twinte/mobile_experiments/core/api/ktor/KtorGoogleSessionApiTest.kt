@@ -69,4 +69,25 @@ class KtorGoogleSessionApiTest {
             api.createSessionWithIdToken("id-token")
         }
     }
+
+    @Test
+    fun createSessionWithIdTokenThrowsResponseBodyWhenRequestFails() = runTest {
+        val api = KtorGoogleSessionApi(
+            httpClient = HttpClient(
+                MockEngine {
+                    respond(
+                        content = "invalid id token audience",
+                        status = HttpStatusCode.InternalServerError,
+                    )
+                },
+            ),
+        )
+
+        val error = assertFailsWith<TwinteApiException> {
+            api.createSessionWithIdToken("id-token")
+        }
+
+        assertEquals(HttpStatusCode.InternalServerError, error.status)
+        assertEquals("invalid id token audience", error.responseBody)
+    }
 }

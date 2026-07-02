@@ -46,7 +46,7 @@ private enum GoogleSignInConfig {
     }
 }
 
-private extension Bundle {
+extension Bundle {
     func nonEmptyInfoString(forKey key: String) -> String? {
         guard let value = object(forInfoDictionaryKey: key) as? String else {
             return nil

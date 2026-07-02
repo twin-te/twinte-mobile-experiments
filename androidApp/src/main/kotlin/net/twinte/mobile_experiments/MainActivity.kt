@@ -25,6 +25,7 @@ class MainActivity : ComponentActivity() {
                     activity = this,
                     serverClientId = BuildConfig.TWINTE_GOOGLE_SERVER_CLIENT_ID,
                 ),
+                appBaseUrl = BuildConfig.TWINTE_APP_BASE_URL,
             )
         }
     }
