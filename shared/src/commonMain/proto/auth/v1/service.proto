@@ -1,0 +1,42 @@
+syntax = "proto3";
+package auth.v1;
+
+import "auth/v1/type.proto";
+
+option go_package = "github.com/twin-te/twin-te/back/handler/api/v4/rpcgen/auth/v1;authv1";
+option java_package = "net.twinte.api.auth.v1";
+
+// Server-only shared.twinte custom options are omitted in this client copy.
+// Request and response wire definitions are kept aligned with the backend.
+
+// The following error codes are not stated explicitly in the each rpc, but may be returned.
+//   - shared.InvalidArgument
+//   - shared.Unauthenticated
+//   - shared.Unauthorized
+service AuthService {
+  rpc GetMe(GetMeRequest) returns (GetMeResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+
+  rpc DeleteUserAuthentication(DeleteUserAuthenticationRequest) returns (DeleteUserAuthenticationResponse) {
+  }
+
+  rpc DeleteAccount(DeleteAccountRequest) returns (DeleteAccountResponse) {
+  }
+}
+
+message GetMeRequest {}
+
+message GetMeResponse {
+  User user = 1;
+}
+
+message DeleteUserAuthenticationRequest {
+  Provider provider = 1;
+}
+
+message DeleteUserAuthenticationResponse {}
+
+message DeleteAccountRequest {}
+
+message DeleteAccountResponse {}

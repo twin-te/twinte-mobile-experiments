@@ -4,32 +4,36 @@
 	classes = {
 	};
 	objectVersion = 77;
-	objects = {
+		objects = {
+
+/* Begin PBXBuildFile section */
+		5B5C5F0C2F7A4A9A8D6A2F01 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = 5B5C5F0B2F7A4A9A8D6A2F01 /* GoogleSignIn */; };
+/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		55CE027A0BFE0F66441C7E44 /* Twintemobileexperiments.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Twintemobileexperiments.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		70AB9C9EB59720A999E6B175 /* twinte-mobile-experiments.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = twinte-mobile-experiments.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		C5541DA3A8ABB03F35870DAA /* Exceptions for "iosApp" folder in "iosApp" target */ = {
+		D1EF3B1593101BB316A449A2 /* Exceptions for "iosApp" folder in "iosApp" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 79B518453B2B9FAD71BCEA5E /* iosApp */;
+			target = 24EEE69E81C3F0FAD83B8CBF /* iosApp */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		4ACBE56ED6F049C4378CAC95 /* iosApp */ = {
+		D67113100B52C6E7D824C738 /* iosApp */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				C5541DA3A8ABB03F35870DAA /* Exceptions for "iosApp" folder in "iosApp" target */,
+				D1EF3B1593101BB316A449A2 /* Exceptions for "iosApp" folder in "iosApp" target */,
 			);
 			path = iosApp;
 			sourceTree = "<group>";
 		};
-		6A83C3D844E9901034FB6891 /* Configuration */ = {
+		36DEB2E46E35A82AAC797693 /* Configuration */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Configuration;
 			sourceTree = "<group>";
@@ -37,29 +41,30 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		DC9A2B06A91AD21099A42B8E /* Frameworks */ = {
+		9146F064277D7521A1081C89 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5B5C5F0C2F7A4A9A8D6A2F01 /* GoogleSignIn in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		630A64C88CCFD472C3C778BA = {
+		E8B6137B9A20F662353C0C71 = {
 			isa = PBXGroup;
 			children = (
-				6A83C3D844E9901034FB6891 /* Configuration */,
-				4ACBE56ED6F049C4378CAC95 /* iosApp */,
-				AA94C82583A21B25C8C0CF45 /* Products */,
+				36DEB2E46E35A82AAC797693 /* Configuration */,
+				D67113100B52C6E7D824C738 /* iosApp */,
+				73238C979C3FD81DCD7BAAB7 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		AA94C82583A21B25C8C0CF45 /* Products */ = {
+		73238C979C3FD81DCD7BAAB7 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				55CE027A0BFE0F66441C7E44 /* Twintemobileexperiments.app */,
+				70AB9C9EB59720A999E6B175 /* twinte-mobile-experiments.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -67,65 +72,69 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		79B518453B2B9FAD71BCEA5E /* iosApp */ = {
+		24EEE69E81C3F0FAD83B8CBF /* iosApp */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 4C183DE0C96997E434A8CE82 /* Build configuration list for PBXNativeTarget "iosApp" */;
+			buildConfigurationList = 8F9E4CC7FC1253EA259E5CAC /* Build configuration list for PBXNativeTarget "iosApp" */;
 			buildPhases = (
-				3E39075E229AFA593B6C94D1 /* Compile Kotlin Framework */,
-				96F46485D2043B1D24AE0ABC /* Sources */,
-				DC9A2B06A91AD21099A42B8E /* Frameworks */,
-				640D29D32B0B5DF9BCA5262E /* Resources */,
+				ADC7BD663EF02D663228F3D9 /* Compile Kotlin Framework */,
+				7C86DB660F7BD2C8B420DE22 /* Sources */,
+				9146F064277D7521A1081C89 /* Frameworks */,
+				C7B3E8844400831DFAB65208 /* Resources */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				4ACBE56ED6F049C4378CAC95 /* iosApp */,
+				D67113100B52C6E7D824C738 /* iosApp */,
 			);
 			name = iosApp;
 			packageProductDependencies = (
+				5B5C5F0B2F7A4A9A8D6A2F01 /* GoogleSignIn */,
 			);
 			productName = iosApp;
-			productReference = 55CE027A0BFE0F66441C7E44 /* Twintemobileexperiments.app */;
+			productReference = 70AB9C9EB59720A999E6B175 /* twinte-mobile-experiments.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		31E1166AE815DC820D1F6600 /* Project object */ = {
+		89C145B22988675869BBE64F /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1620;
 				LastUpgradeCheck = 1620;
 				TargetAttributes = {
-					79B518453B2B9FAD71BCEA5E = {
+					24EEE69E81C3F0FAD83B8CBF = {
 						CreatedOnToolsVersion = 16.2;
 					};
 				};
 			};
-			buildConfigurationList = 8221DAE5E8548CC383969030 /* Build configuration list for PBXProject "iosApp" */;
+			buildConfigurationList = B821605248363684E94FE168 /* Build configuration list for PBXProject "iosApp" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
 				Base,
 			);
-			mainGroup = 630A64C88CCFD472C3C778BA;
+			mainGroup = E8B6137B9A20F662353C0C71;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				5B5C5F0A2F7A4A9A8D6A2F01 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
+			);
 			preferredProjectObjectVersion = 77;
-			productRefGroup = AA94C82583A21B25C8C0CF45 /* Products */;
+			productRefGroup = 73238C979C3FD81DCD7BAAB7 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				79B518453B2B9FAD71BCEA5E /* iosApp */,
+				24EEE69E81C3F0FAD83B8CBF /* iosApp */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		640D29D32B0B5DF9BCA5262E /* Resources */ = {
+		C7B3E8844400831DFAB65208 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -135,7 +144,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		3E39075E229AFA593B6C94D1 /* Compile Kotlin Framework */ = {
+		ADC7BD663EF02D663228F3D9 /* Compile Kotlin Framework */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -152,12 +161,12 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set to \\\"YES\\\"\"\n  exit 0\nfi\ncd \"$SRCROOT/..\"\n./gradlew :composeApp:embedAndSignAppleFrameworkForXcode\n";
+			shellScript = "if [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set to \\\"YES\\\"\"\n  exit 0\nfi\ncd \"$SRCROOT/..\"\n./gradlew :shared:embedAndSignAppleFrameworkForXcode\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		96F46485D2043B1D24AE0ABC /* Sources */ = {
+		7C86DB660F7BD2C8B420DE22 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -167,9 +176,9 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		24CB1D8FF818137F71BF3946 /* Debug */ = {
+		6085B988B678B7CC20C6ECF8 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReferenceAnchor = 6A83C3D844E9901034FB6891 /* Configuration */;
+			baseConfigurationReferenceAnchor = 36DEB2E46E35A82AAC797693 /* Configuration */;
 			baseConfigurationReferenceRelativePath = Config.xcconfig;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -232,9 +241,9 @@
 			};
 			name = Debug;
 		};
-		4D1581B8BAA9275D21264E1B /* Release */ = {
+		05AF0F7913FDD910567D93F3 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReferenceAnchor = 6A83C3D844E9901034FB6891 /* Configuration */;
+			baseConfigurationReferenceAnchor = 36DEB2E46E35A82AAC797693 /* Configuration */;
 			baseConfigurationReferenceRelativePath = Config.xcconfig;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -290,12 +299,13 @@
 			};
 			name = Release;
 		};
-		A62EA4BAAE7F1D17B0E56690 /* Debug */ = {
+		C4D1E70CAEF0D3428B73D8E0 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = iosApp/iosApp.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_ASSET_PATHS = "\"iosApp/Preview Content\"";
@@ -318,12 +328,13 @@
 			};
 			name = Debug;
 		};
-		2BFB5A30AE7FC3F8CDE102E1 /* Release */ = {
+		41B1A332812E6C40ECF48311 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = iosApp/iosApp.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_ASSET_PATHS = "\"iosApp/Preview Content\"";
@@ -349,25 +360,44 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		8221DAE5E8548CC383969030 /* Build configuration list for PBXProject "iosApp" */ = {
+		B821605248363684E94FE168 /* Build configuration list for PBXProject "iosApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				24CB1D8FF818137F71BF3946 /* Debug */,
-				4D1581B8BAA9275D21264E1B /* Release */,
+				6085B988B678B7CC20C6ECF8 /* Debug */,
+				05AF0F7913FDD910567D93F3 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		4C183DE0C96997E434A8CE82 /* Build configuration list for PBXNativeTarget "iosApp" */ = {
+		8F9E4CC7FC1253EA259E5CAC /* Build configuration list for PBXNativeTarget "iosApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				A62EA4BAAE7F1D17B0E56690 /* Debug */,
-				2BFB5A30AE7FC3F8CDE102E1 /* Release */,
+				C4D1E70CAEF0D3428B73D8E0 /* Debug */,
+				41B1A332812E6C40ECF48311 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		5B5C5F0A2F7A4A9A8D6A2F01 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		5B5C5F0B2F7A4A9A8D6A2F01 /* GoogleSignIn */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5B5C5F0A2F7A4A9A8D6A2F01 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;
+			productName = GoogleSignIn;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
-	rootObject = 31E1166AE815DC820D1F6600 /* Project object */;
+	rootObject = 89C145B22988675869BBE64F /* Project object */;
 }

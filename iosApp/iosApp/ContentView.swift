@@ -4,7 +4,12 @@ import ComposeApp
 
 struct ComposeView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> UIViewController {
-        MainViewControllerKt.MainViewController()
+        MainViewControllerKt.MainViewController(
+            googleIdTokenProvider: IOSGoogleIdTokenProvider(),
+            appleSignInCredentialProvider: IOSAppleSignInCredentialProvider(),
+            sessionStore: IOSKeychainSessionStore(),
+            appBaseUrl: Bundle.main.nonEmptyInfoString(forKey: "TwinteAppBaseURL") ?? "https://app.twinte.net"
+        )
     }
 
     func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
@@ -16,6 +21,3 @@ struct ContentView: View {
             .ignoresSafeArea()
     }
 }
-
-
-

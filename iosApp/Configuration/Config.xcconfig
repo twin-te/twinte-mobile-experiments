@@ -1,7 +1,16 @@
 TEAM_ID=
 
-PRODUCT_NAME=Twintemobileexperiments
-PRODUCT_BUNDLE_IDENTIFIER=net.twinte.mobile_experiments.Twintemobileexperiments$(TEAM_ID)
+PRODUCT_NAME=twinte-mobile-experiments
+PRODUCT_BUNDLE_IDENTIFIER=net.twinte.mobile-experiments
 
 CURRENT_PROJECT_VERSION=1
 MARKETING_VERSION=1.0
+
+APP_BASE_URL=https:/$()/app.twinte.net
+APP_BASE_URL[config=Debug]=https:/$()/app.stg.twinte.net
+
+GOOGLE_IOS_CLIENT_ID=
+GOOGLE_IOS_REVERSED_CLIENT_ID=
+GOOGLE_SERVER_CLIENT_ID=
+
+#include? "Local.xcconfig"
