@@ -1,8 +1,11 @@
 package net.twinte.mobile_experiments.core.auth
 
 interface AppleSessionApi {
+    suspend fun createChallenge(): AuthChallenge
+
     suspend fun createSessionWithCredential(
         credential: AppleSignInCredential,
+        challengeId: String,
         currentSession: TwinteSession? = null,
     ): TwinteSession
 }

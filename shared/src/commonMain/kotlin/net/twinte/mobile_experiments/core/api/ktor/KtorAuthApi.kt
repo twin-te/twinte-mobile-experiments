@@ -3,7 +3,6 @@ package net.twinte.mobile_experiments.core.api.ktor
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.accept
-import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -58,7 +57,7 @@ class KtorAuthApi(
     }
 
     override suspend fun logout(session: TwinteSession) {
-        val response = httpClient.get(authUrl("logout")) {
+        val response = httpClient.post(authUrl("logout")) {
             header(HttpHeaders.Cookie, "${session.cookieName}=${session.sessionId}")
             url {
                 parameters.append("redirect_url", appBaseUrl.toString())

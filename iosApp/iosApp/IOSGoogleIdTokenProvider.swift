@@ -8,7 +8,7 @@ final class IOSGoogleIdTokenProvider: NSObject, GoogleIdTokenProvider {
         GoogleSignInConfig.current != nil
     }
 
-    func requestIdToken(completionHandler: @escaping (String?, Error?) -> Void) {
+    func requestIdToken(nonce: String, completionHandler: @escaping (String?, Error?) -> Void) {
         Task { @MainActor in
             guard let config = GoogleSignInConfig.current else {
                 completionHandler(nil, nil)
@@ -23,16 +23,27 @@ final class IOSGoogleIdTokenProvider: NSObject, GoogleIdTokenProvider {
 
             do {
                 let result = try await GIDSignIn.sharedInstance.signIn(
-                    withPresenting: presentingViewController
+                    withPresenting: presentingViewController,
+                    hint: nil,
+                    additionalScopes: nil,
+                    nonce: nonce
                 )
                 let user = try await result.user.refreshTokensIfNeeded()
                 completionHandler(user.idToken?.tokenString, nil)
             } catch {
+                let nsError = error as NSError
+                if nsError.domain == kGIDSignInErrorDomain,
+                   nsError.code == googleSignInCanceledErrorCode {
+                    completionHandler(nil, nil)
+                    return
+                }
                 completionHandler(nil, error)
             }
         }
     }
 }
+
+private let googleSignInCanceledErrorCode = -5
 
 private enum GoogleSignInConfig {
     static var current: GIDConfiguration? {

@@ -37,6 +37,7 @@ class KtorAppleSessionApiTest {
                 idToken = "apple-id-token",
                 authorizationCode = "apple-code",
             ),
+            challengeId = "challenge-id",
         )
 
         assertEquals("apple-session-id", session.sessionId)

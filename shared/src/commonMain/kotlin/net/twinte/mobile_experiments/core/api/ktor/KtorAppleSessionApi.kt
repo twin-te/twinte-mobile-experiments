@@ -4,6 +4,7 @@ import io.ktor.client.HttpClient
 import io.ktor.http.Url
 import net.twinte.mobile_experiments.core.auth.AppleSessionApi
 import net.twinte.mobile_experiments.core.auth.AppleSignInCredential
+import net.twinte.mobile_experiments.core.auth.AuthChallenge
 import net.twinte.mobile_experiments.core.auth.TwinteSession
 
 class KtorAppleSessionApi(
@@ -19,8 +20,12 @@ class KtorAppleSessionApi(
         },
     ) : this(Url(appBaseUrl.trimEnd('/')), httpClient)
 
+    override suspend fun createChallenge(): AuthChallenge =
+        createAuthChallenge(appBaseUrl, httpClient, "apple")
+
     override suspend fun createSessionWithCredential(
         credential: AppleSignInCredential,
+        challengeId: String,
         currentSession: TwinteSession?,
     ): TwinteSession =
         createSessionWithIdToken(
@@ -28,6 +33,7 @@ class KtorAppleSessionApi(
             httpClient = httpClient,
             providerPath = "apple",
             idToken = credential.idToken,
+            challengeId = challengeId,
             authorizationCode = credential.authorizationCode,
             currentSession = currentSession,
         )

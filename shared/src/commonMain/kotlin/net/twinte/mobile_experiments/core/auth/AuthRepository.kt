@@ -26,16 +26,22 @@ class AuthRepository(
         }
     }
 
-    suspend fun signInWithGoogleIdToken(idToken: String): AuthSession {
-        val session = googleSessionApi.createSessionWithIdToken(idToken, sessionStore.getSession())
+    suspend fun createGoogleAuthChallenge(): AuthChallenge = googleSessionApi.createChallenge()
+
+    suspend fun signInWithGoogleIdToken(idToken: String, challengeId: String): AuthSession {
+        val session = googleSessionApi.createSessionWithIdToken(idToken, challengeId, sessionStore.getSession())
+        val authSession = AuthSession(session.sessionId, authApi.getMe(session))
         sessionStore.saveSessionId(session.sessionId)
-        return fetchAuthSession(session)
+        return authSession
     }
 
-    suspend fun signInWithAppleCredential(credential: AppleSignInCredential): AuthSession {
-        val session = appleSessionApi.createSessionWithCredential(credential, sessionStore.getSession())
+    suspend fun createAppleAuthChallenge(): AuthChallenge = appleSessionApi.createChallenge()
+
+    suspend fun signInWithAppleCredential(credential: AppleSignInCredential, challengeId: String): AuthSession {
+        val session = appleSessionApi.createSessionWithCredential(credential, challengeId, sessionStore.getSession())
+        val authSession = AuthSession(session.sessionId, authApi.getMe(session))
         sessionStore.saveSessionId(session.sessionId)
-        return fetchAuthSession(session)
+        return authSession
     }
 
     suspend fun getMe(): User {
@@ -44,17 +50,19 @@ class AuthRepository(
         }
     }
 
-    suspend fun signOut() {
+    suspend fun signOut(): SignOutResult {
         val session = sessionStore.getSession()
+        var remoteSucceeded = session == null
         try {
             session?.let {
-                runCatching {
+                remoteSucceeded = runCatching {
                     authApi.logout(it)
-                }
+                }.isSuccess
             }
         } finally {
             sessionStore.clearSessionId()
         }
+        return if (remoteSucceeded) SignOutResult.Complete else SignOutResult.LocalOnly
     }
 
     suspend fun deleteUserAuthentication(provider: AuthProvider): AuthSession {
@@ -74,15 +82,6 @@ class AuthRepository(
     private suspend fun requireSession(): TwinteSession =
         requireNotNull(sessionStore.getSession()) { "No session" }
 
-    private suspend fun fetchAuthSession(session: TwinteSession): AuthSession =
-        runCatching {
-            AuthSession(session.sessionId, authApi.getMe(session))
-        }.onFailure { error ->
-            if (error.isUnauthorized()) {
-                sessionStore.clearSessionId()
-            }
-        }.getOrThrow()
-
     private suspend fun <T> withAuthenticatedSession(block: suspend (TwinteSession) -> T): T {
         val session = requireSession()
         return runCatching {
@@ -99,6 +98,11 @@ data class AuthSession(
     val sessionId: String,
     val user: User,
 )
+
+enum class SignOutResult {
+    Complete,
+    LocalOnly,
+}
 
 private suspend fun SessionStore.getSession(): TwinteSession? =
     getSessionId()?.let(::TwinteSession)

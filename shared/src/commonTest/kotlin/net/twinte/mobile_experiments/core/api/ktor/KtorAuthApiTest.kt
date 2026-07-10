@@ -63,7 +63,7 @@ class KtorAuthApiTest {
     @Test
     fun logoutGetsLogoutEndpointWithSessionCookie() = runTest {
         val engine = MockEngine { request ->
-            assertEquals(HttpMethod.Get, request.method)
+            assertEquals(HttpMethod.Post, request.method)
             assertEquals(
                 "https://app.twinte.net/auth/v4/logout?redirect_url=https%3A%2F%2Fapp.twinte.net",
                 request.url.toString(),

@@ -10,9 +10,10 @@ final class IOSAppleSignInCredentialProvider: NSObject, AppleSignInCredentialPro
 
     private var currentCoordinator: AppleAuthorizationCoordinator?
 
-    func requestCredential(completionHandler: @escaping (AppleSignInCredential?, Error?) -> Void) {
+    func requestCredential(nonce: String, completionHandler: @escaping (AppleSignInCredential?, Error?) -> Void) {
         Task { @MainActor in
             let request = ASAuthorizationAppleIDProvider().createRequest()
+            request.nonce = nonce
             let coordinator = AppleAuthorizationCoordinator { [weak self] result in
                 self?.currentCoordinator = nil
                 switch result {

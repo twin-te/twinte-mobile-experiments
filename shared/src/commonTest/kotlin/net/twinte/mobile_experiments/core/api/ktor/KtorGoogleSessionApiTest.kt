@@ -3,6 +3,7 @@ package net.twinte.mobile_experiments.core.api.ktor
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
+import io.ktor.client.request.forms.FormDataContent
 import io.ktor.client.plugins.cookies.HttpCookies
 import io.ktor.http.Cookie
 import io.ktor.http.HttpHeaders
@@ -19,12 +20,32 @@ import kotlin.test.assertFailsWith
 
 class KtorGoogleSessionApiTest {
     @Test
+    fun createChallengeReadsChallengeIdAndNonce() = runTest {
+        val engine = MockEngine { request ->
+            assertEquals(HttpMethod.Post, request.method)
+            assertEquals("/auth/v4/google/challenge", request.url.encodedPath)
+            respond(
+                content = "challenge_id=challenge-id&nonce=nonce-value",
+                status = HttpStatusCode.OK,
+            )
+        }
+        val api = KtorGoogleSessionApi(httpClient = HttpClient(engine))
+
+        val challenge = api.createChallenge()
+
+        assertEquals("challenge-id", challenge.id)
+        assertEquals("nonce-value", challenge.nonce)
+    }
+
+    @Test
     fun createSessionWithIdTokenReadsSessionCookieFromCurrentResponse() = runTest {
         val engine = MockEngine { request ->
             assertEquals(HttpMethod.Post, request.method)
             assertEquals("/auth/v4/google/idToken", request.url.encodedPath)
             assertEquals(null, request.url.parameters["token"])
             assertEquals(null, request.url.parameters["redirect_url"])
+            val formData = (request.body as FormDataContent).formData
+            assertEquals("challenge-id", formData["challenge_id"])
             respond(
                 content = "",
                 status = HttpStatusCode.Found,
@@ -36,7 +57,7 @@ class KtorGoogleSessionApiTest {
         }
         val api = KtorGoogleSessionApi(httpClient = HttpClient(engine))
 
-        val session = api.createSessionWithIdToken("id-token")
+        val session = api.createSessionWithIdToken("id-token", "challenge-id")
 
         assertEquals("session-id", session.sessionId)
     }
@@ -56,7 +77,11 @@ class KtorGoogleSessionApiTest {
         }
         val api = KtorGoogleSessionApi(httpClient = HttpClient(engine))
 
-        val session = api.createSessionWithIdToken("id-token", TwinteSession("current-session-id"))
+        val session = api.createSessionWithIdToken(
+            "id-token",
+            "challenge-id",
+            TwinteSession("current-session-id"),
+        )
 
         assertEquals("new-session-id", session.sessionId)
     }
@@ -87,7 +112,7 @@ class KtorGoogleSessionApiTest {
         )
 
         assertFailsWith<TwinteApiException> {
-            api.createSessionWithIdToken("id-token")
+            api.createSessionWithIdToken("id-token", "challenge-id")
         }
     }
 
@@ -105,7 +130,7 @@ class KtorGoogleSessionApiTest {
         )
 
         val error = assertFailsWith<TwinteApiException> {
-            api.createSessionWithIdToken("id-token")
+            api.createSessionWithIdToken("id-token", "challenge-id")
         }
 
         assertEquals(HttpStatusCode.InternalServerError, error.status)

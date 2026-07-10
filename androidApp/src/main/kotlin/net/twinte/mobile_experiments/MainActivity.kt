@@ -10,9 +10,10 @@ import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
 import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
-import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,18 +39,23 @@ private class AndroidGoogleIdTokenProvider(
     override val isConfigured: Boolean
         get() = serverClientId.isNotBlank()
 
-    override suspend fun requestIdToken(): String? {
+    override suspend fun requestIdToken(nonce: String): String? {
         val request = GetCredentialRequest.Builder()
             .addCredentialOption(
-                GetSignInWithGoogleOption.Builder(serverClientId).build(),
+                GetSignInWithGoogleOption.Builder(serverClientId)
+                    .setNonce(nonce)
+                    .build(),
             )
             .build()
 
         return runCatching {
             CredentialManager.create(activity).getCredential(activity, request)
         }.getOrElse { error ->
-            if (error is GetCredentialException) {
-                return null
+            when (error) {
+                is GetCredentialCancellationException,
+                is NoCredentialException,
+                -> return null
+                is GetCredentialException -> throw error
             }
             throw error
         }.extractGoogleIdToken()
@@ -65,12 +71,5 @@ private fun GetCredentialResponse.extractGoogleIdToken(): String? {
         return null
     }
 
-    return runCatching {
-        GoogleIdTokenCredential.createFrom(customCredential.data).idToken
-    }.getOrElse { error ->
-        if (error is GoogleIdTokenParsingException) {
-            return null
-        }
-        throw error
-    }
+    return GoogleIdTokenCredential.createFrom(customCredential.data).idToken
 }

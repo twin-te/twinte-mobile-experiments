@@ -43,31 +43,32 @@ import net.twinte.mobile_experiments.core.auth.AuthSession
 import net.twinte.mobile_experiments.core.auth.AuthState
 import net.twinte.mobile_experiments.core.auth.AppleSignInCredential
 import net.twinte.mobile_experiments.core.auth.SessionStore
+import net.twinte.mobile_experiments.core.auth.SignOutResult
 import net.twinte.mobile_experiments.core.auth.rememberSessionStore
 import net.twinte.mobile_experiments.core.domain.AuthProvider
 
 interface GoogleIdTokenProvider {
     val isConfigured: Boolean
 
-    suspend fun requestIdToken(): String?
+    suspend fun requestIdToken(nonce: String): String?
 }
 
 object UnavailableGoogleIdTokenProvider : GoogleIdTokenProvider {
     override val isConfigured: Boolean = false
 
-    override suspend fun requestIdToken(): String? = null
+    override suspend fun requestIdToken(nonce: String): String? = null
 }
 
 interface AppleSignInCredentialProvider {
     val isConfigured: Boolean
 
-    suspend fun requestCredential(): AppleSignInCredential?
+    suspend fun requestCredential(nonce: String): AppleSignInCredential?
 }
 
 object UnavailableAppleSignInCredentialProvider : AppleSignInCredentialProvider {
     override val isConfigured: Boolean = false
 
-    override suspend fun requestCredential(): AppleSignInCredential? = null
+    override suspend fun requestCredential(nonce: String): AppleSignInCredential? = null
 }
 
 @Composable
@@ -166,10 +167,11 @@ private fun AuthScreen(
         scope.launch {
             uiState = uiState.copy(isLoading = true, message = "Opening Apple...")
             try {
-                val credential = appleSignInCredentialProvider.requestCredential()
-                    ?: error("Apple credential is missing")
+                val challenge = authRepository.createAppleAuthChallenge()
+                val credential = appleSignInCredentialProvider.requestCredential(challenge.nonce)
+                    ?: throw AuthCanceledException()
                 uiState = uiState.copy(message = "Creating session...")
-                applySession(authRepository.signInWithAppleCredential(credential))
+                applySession(authRepository.signInWithAppleCredential(credential, challenge.id))
             } catch (error: Throwable) {
                 applyFailure(error)
             }
@@ -210,8 +212,14 @@ private fun AuthScreen(
         scope.launch {
             uiState = uiState.copy(isLoading = true, message = "Signing out...")
             try {
-                authRepository.signOut()
-                uiState = uiState.signedOut("Signed out")
+                val result = authRepository.signOut()
+                uiState = uiState.signedOut(
+                    if (result == SignOutResult.Complete) {
+                        "Signed out"
+                    } else {
+                        "Signed out locally; server sign-out failed"
+                    },
+                )
             } catch (error: Throwable) {
                 applyFailure(error)
             }
@@ -234,10 +242,11 @@ private fun AuthScreen(
         scope.launch {
             uiState = uiState.copy(isLoading = true, message = "Opening Google...")
             try {
-                val idToken = googleIdTokenProvider.requestIdToken()
-                    ?: error("Google ID token is missing")
+                val challenge = authRepository.createGoogleAuthChallenge()
+                val idToken = googleIdTokenProvider.requestIdToken(challenge.nonce)
+                    ?: throw AuthCanceledException()
                 uiState = uiState.copy(message = "Creating session...")
-                applySession(authRepository.signInWithGoogleIdToken(idToken))
+                applySession(authRepository.signInWithGoogleIdToken(idToken, challenge.id))
             } catch (error: Throwable) {
                 applyFailure(error)
             }
