@@ -39,6 +39,7 @@ import net.twinte.mobile_experiments.core.auth.AuthState
 import net.twinte.mobile_experiments.core.auth.AppleSignInCredential
 import net.twinte.mobile_experiments.core.auth.SessionStore
 import net.twinte.mobile_experiments.core.auth.rememberSessionStore
+import net.twinte.mobile_experiments.core.domain.AuthProvider
 
 interface GoogleIdTokenProvider {
     val isConfigured: Boolean
@@ -117,11 +118,11 @@ private fun AuthScreen(
         )
     }
 
-    fun applySession(session: AuthSession) {
+    fun applySession(session: AuthSession, message: String = "Signed in") {
         uiState = uiState.copy(
             authState = AuthState.LoggedIn(session.user),
             sessionId = session.sessionId,
-            message = "Signed in",
+            message = message,
             isLoading = false,
         )
     }
@@ -173,6 +174,44 @@ private fun AuthScreen(
         }
     }
 
+    fun deleteUserAuthentication(provider: AuthProvider) {
+        scope.launch {
+            uiState = uiState.copy(isLoading = true, message = "Unlinking ${provider.name}...")
+            try {
+                applySession(
+                    session = authRepository.deleteUserAuthentication(provider),
+                    message = "Unlinked ${provider.name}",
+                )
+            } catch (error: Throwable) {
+                uiState = uiState.copy(isLoading = false, message = error.toAuthFailure().toStatusMessage())
+            }
+        }
+    }
+
+    fun signOut() {
+        scope.launch {
+            uiState = uiState.copy(isLoading = true, message = "Signing out...")
+            try {
+                authRepository.signOut()
+                uiState = uiState.signedOut("Signed out")
+            } catch (error: Throwable) {
+                uiState = uiState.signedOut(error.toAuthFailure().toStatusMessage())
+            }
+        }
+    }
+
+    fun deleteAccount() {
+        scope.launch {
+            uiState = uiState.copy(isLoading = true, message = "Deleting account...")
+            try {
+                authRepository.deleteAccount()
+                uiState = uiState.signedOut("Deleted account")
+            } catch (error: Throwable) {
+                uiState = uiState.signedOut(error.toAuthFailure().toStatusMessage())
+            }
+        }
+    }
+
     fun signInWithGoogle() {
         scope.launch {
             uiState = uiState.copy(isLoading = true, message = "Opening Google...")
@@ -187,6 +226,8 @@ private fun AuthScreen(
         }
     }
 
+    val loggedInUser = (uiState.authState as? AuthState.LoggedIn)?.user
+
     Column(
         modifier = Modifier
             .safeContentPadding()
@@ -199,7 +240,7 @@ private fun AuthScreen(
         uiState.sessionId?.let {
             Text("Session: ${it.take(8)}...", style = MaterialTheme.typography.bodyMedium)
         }
-        (uiState.authState as? AuthState.LoggedIn)?.user?.let {
+        loggedInUser?.let {
             Text("User ID: ${it.id}", style = MaterialTheme.typography.bodyMedium)
             Text(
                 "Providers: ${it.authentications.joinToString { auth -> auth.provider.name }}",
@@ -236,14 +277,34 @@ private fun AuthScreen(
                 colors = ButtonDefaults.outlinedButtonColors(
                     contentColor = MaterialTheme.colorScheme.error,
                 ),
-                onClick = {
-                    scope.launch {
-                        authRepository.clearSession()
-                        uiState = uiState.signedOut("Signed out locally")
-                    }
-                },
+                onClick = ::signOut,
             ) {
-                Text("Clear")
+                Text("Logout")
+            }
+        }
+        loggedInUser?.let {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    enabled = !uiState.isLoading,
+                    onClick = { deleteUserAuthentication(AuthProvider.Google) },
+                ) {
+                    Text("Unlink Google")
+                }
+                OutlinedButton(
+                    enabled = !uiState.isLoading,
+                    onClick = { deleteUserAuthentication(AuthProvider.Apple) },
+                ) {
+                    Text("Unlink Apple")
+                }
+            }
+            OutlinedButton(
+                enabled = !uiState.isLoading,
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error,
+                ),
+                onClick = ::deleteAccount,
+            ) {
+                Text("Delete Account")
             }
         }
     }

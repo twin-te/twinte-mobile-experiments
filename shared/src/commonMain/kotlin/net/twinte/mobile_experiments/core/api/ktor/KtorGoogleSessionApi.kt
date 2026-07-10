@@ -18,11 +18,12 @@ class KtorGoogleSessionApi(
         },
     ) : this(Url(appBaseUrl.trimEnd('/')), httpClient)
 
-    override suspend fun createSessionWithIdToken(idToken: String): TwinteSession =
+    override suspend fun createSessionWithIdToken(idToken: String, currentSession: TwinteSession?): TwinteSession =
         createSessionWithIdToken(
             appBaseUrl = appBaseUrl,
             httpClient = httpClient,
             providerPath = "google",
             idToken = idToken,
+            currentSession = currentSession,
         )
 }

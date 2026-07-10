@@ -3,16 +3,20 @@ package net.twinte.mobile_experiments.core.api.ktor
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.accept
+import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.Url
 import io.ktor.http.URLBuilder
 import io.ktor.http.appendPathSegments
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
+import net.twinte.api.auth.v1.DeleteAccountRequest
+import net.twinte.api.auth.v1.DeleteUserAuthenticationRequest
 import net.twinte.api.auth.v1.GetMeRequest
 import net.twinte.api.auth.v1.GetMeResponse
 import net.twinte.api.auth.v1.Provider as ApiProvider
@@ -31,31 +35,83 @@ import pbandk.json.encodeToJsonString
 @OptIn(ExperimentalProtoJson::class)
 class KtorAuthApi(
     private val apiBaseUrl: Url = Url("https://app.twinte.net/api/v4"),
+    private val appBaseUrl: Url = Url("https://app.twinte.net"),
     private val httpClient: HttpClient = HttpClient(),
 ) : AuthApi {
     constructor(
         apiBaseUrl: String,
+        appBaseUrl: String = apiBaseUrl.removeSuffix("/api/v4"),
         httpClient: HttpClient = HttpClient(),
-    ) : this(Url(apiBaseUrl.trimEnd('/')), httpClient)
+    ) : this(
+        apiBaseUrl = Url(apiBaseUrl.trimEnd('/')),
+        appBaseUrl = Url(appBaseUrl.trimEnd('/')),
+        httpClient = httpClient,
+    )
 
     override suspend fun getMe(session: TwinteSession): User {
-        val response = httpClient.post(connectUrl("auth.v1.AuthService", "GetMe")) {
+        val body = postConnectJson(
+            session = session,
+            method = "GetMe",
+            requestBody = GetMeRequest().encodeToJsonString(),
+        )
+        return GetMeResponse.decodeFromJsonString(body).toDomainUser()
+    }
+
+    override suspend fun logout(session: TwinteSession) {
+        val response = httpClient.get(authUrl("logout")) {
+            header(HttpHeaders.Cookie, "${session.cookieName}=${session.sessionId}")
+            url {
+                parameters.append("redirect_url", appBaseUrl.toString())
+            }
+        }
+        if (!response.status.isSuccess() && response.status != HttpStatusCode.Found) {
+            throw TwinteApiException(response.status, response.body<String>())
+        }
+    }
+
+    override suspend fun deleteUserAuthentication(session: TwinteSession, provider: AuthProvider) {
+        postConnectJson(
+            session = session,
+            method = "DeleteUserAuthentication",
+            requestBody = DeleteUserAuthenticationRequest(provider = provider.toApiProvider()).encodeToJsonString(),
+        )
+    }
+
+    override suspend fun deleteAccount(session: TwinteSession) {
+        postConnectJson(
+            session = session,
+            method = "DeleteAccount",
+            requestBody = DeleteAccountRequest().encodeToJsonString(),
+        )
+    }
+
+    private suspend fun postConnectJson(
+        session: TwinteSession,
+        method: String,
+        requestBody: String,
+    ): String {
+        val response = httpClient.post(connectUrl("auth.v1.AuthService", method)) {
             accept(ContentType.Application.Json)
             contentType(ContentType.Application.Json)
             header("Connect-Protocol-Version", "1")
             header(HttpHeaders.Cookie, "${session.cookieName}=${session.sessionId}")
-            setBody(GetMeRequest().encodeToJsonString())
+            setBody(requestBody)
         }
         val body = response.body<String>()
         if (!response.status.isSuccess()) {
             throw TwinteApiException(response.status, body)
         }
-        return GetMeResponse.decodeFromJsonString(body).toDomainUser()
+        return body
     }
 
     private fun connectUrl(service: String, method: String): Url =
         URLBuilder(apiBaseUrl).apply {
             appendPathSegments(service, method)
+        }.build()
+
+    private fun authUrl(method: String): Url =
+        URLBuilder(appBaseUrl).apply {
+            appendPathSegments("auth", "v4", method)
         }.build()
 }
 
@@ -84,4 +140,11 @@ private fun ApiProvider.toAuthProvider(): AuthProvider =
         ApiProvider.APPLE -> AuthProvider.Apple
         ApiProvider.TWITTER -> AuthProvider.Twitter
         else -> error("Unsupported authentication provider: $this")
+    }
+
+private fun AuthProvider.toApiProvider(): ApiProvider =
+    when (this) {
+        AuthProvider.Google -> ApiProvider.GOOGLE
+        AuthProvider.Apple -> ApiProvider.APPLE
+        AuthProvider.Twitter -> ApiProvider.TWITTER
     }

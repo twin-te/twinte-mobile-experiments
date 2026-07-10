@@ -86,6 +86,58 @@ class AuthRepositoryTest {
         assertNull(store.getSessionId())
     }
 
+    @Test
+    fun signOutLogsOutRemotelyAndClearsSession() = runTest {
+        val store = MemorySessionStore("session-id")
+        val authApi = FakeAuthApi()
+        val repository = AuthRepository(
+            sessionStore = store,
+            authApi = authApi,
+            googleSessionApi = FakeGoogleSessionApi(TwinteSession("unused")),
+            appleSessionApi = FakeAppleSessionApi(TwinteSession("unused")),
+        )
+
+        repository.signOut()
+
+        assertEquals(TwinteSession("session-id"), authApi.loggedOutSession)
+        assertNull(store.getSessionId())
+    }
+
+    @Test
+    fun deleteUserAuthenticationRefreshesUser() = runTest {
+        val store = MemorySessionStore("session-id")
+        val authApi = FakeAuthApi()
+        val repository = AuthRepository(
+            sessionStore = store,
+            authApi = authApi,
+            googleSessionApi = FakeGoogleSessionApi(TwinteSession("unused")),
+            appleSessionApi = FakeAppleSessionApi(TwinteSession("unused")),
+        )
+
+        val session = repository.deleteUserAuthentication(AuthProvider.Apple)
+
+        assertEquals("session-id", session.sessionId)
+        assertEquals(AuthProvider.Apple, authApi.deletedProvider)
+        assertEquals(TwinteSession("session-id"), authApi.lastSession)
+    }
+
+    @Test
+    fun deleteAccountDeletesRemoteAccountAndClearsSession() = runTest {
+        val store = MemorySessionStore("session-id")
+        val authApi = FakeAuthApi()
+        val repository = AuthRepository(
+            sessionStore = store,
+            authApi = authApi,
+            googleSessionApi = FakeGoogleSessionApi(TwinteSession("unused")),
+            appleSessionApi = FakeAppleSessionApi(TwinteSession("unused")),
+        )
+
+        repository.deleteAccount()
+
+        assertEquals(TwinteSession("session-id"), authApi.deletedAccountSession)
+        assertNull(store.getSessionId())
+    }
+
     private class FakeAuthApi(
         private val getMeResult: Result<User> = Result.success(
             User(
@@ -101,10 +153,29 @@ class AuthRepositoryTest {
     ) : AuthApi {
         var lastSession: TwinteSession? = null
             private set
+        var loggedOutSession: TwinteSession? = null
+            private set
+        var deletedProvider: AuthProvider? = null
+            private set
+        var deletedAccountSession: TwinteSession? = null
+            private set
 
         override suspend fun getMe(session: TwinteSession): User {
             lastSession = session
             return getMeResult.getOrThrow()
+        }
+
+        override suspend fun logout(session: TwinteSession) {
+            loggedOutSession = session
+        }
+
+        override suspend fun deleteUserAuthentication(session: TwinteSession, provider: AuthProvider) {
+            lastSession = session
+            deletedProvider = provider
+        }
+
+        override suspend fun deleteAccount(session: TwinteSession) {
+            deletedAccountSession = session
         }
     }
 
@@ -114,8 +185,15 @@ class AuthRepositoryTest {
         var requestedIdToken: String? = null
             private set
 
-        override suspend fun createSessionWithIdToken(idToken: String): TwinteSession {
+        var requestedCurrentSession: TwinteSession? = null
+            private set
+
+        override suspend fun createSessionWithIdToken(
+            idToken: String,
+            currentSession: TwinteSession?,
+        ): TwinteSession {
             requestedIdToken = idToken
+            requestedCurrentSession = currentSession
             return session
         }
     }
@@ -126,8 +204,15 @@ class AuthRepositoryTest {
         var requestedCredential: AppleSignInCredential? = null
             private set
 
-        override suspend fun createSessionWithCredential(credential: AppleSignInCredential): TwinteSession {
+        var requestedCurrentSession: TwinteSession? = null
+            private set
+
+        override suspend fun createSessionWithCredential(
+            credential: AppleSignInCredential,
+            currentSession: TwinteSession?,
+        ): TwinteSession {
             requestedCredential = credential
+            requestedCurrentSession = currentSession
             return session
         }
     }

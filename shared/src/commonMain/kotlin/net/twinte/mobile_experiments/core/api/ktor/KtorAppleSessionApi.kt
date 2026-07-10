@@ -19,12 +19,16 @@ class KtorAppleSessionApi(
         },
     ) : this(Url(appBaseUrl.trimEnd('/')), httpClient)
 
-    override suspend fun createSessionWithCredential(credential: AppleSignInCredential): TwinteSession =
+    override suspend fun createSessionWithCredential(
+        credential: AppleSignInCredential,
+        currentSession: TwinteSession?,
+    ): TwinteSession =
         createSessionWithIdToken(
             appBaseUrl = appBaseUrl,
             httpClient = httpClient,
             providerPath = "apple",
             idToken = credential.idToken,
             authorizationCode = credential.authorizationCode,
+            currentSession = currentSession,
         )
 }

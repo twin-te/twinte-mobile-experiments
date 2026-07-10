@@ -12,6 +12,7 @@ import io.ktor.http.Url
 import io.ktor.http.headersOf
 import kotlinx.coroutines.test.runTest
 import net.twinte.mobile_experiments.core.api.TwinteApiException
+import net.twinte.mobile_experiments.core.auth.TwinteSession
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -38,6 +39,26 @@ class KtorGoogleSessionApiTest {
         val session = api.createSessionWithIdToken("id-token")
 
         assertEquals("session-id", session.sessionId)
+    }
+
+    @Test
+    fun createSessionWithIdTokenSendsCurrentSessionCookie() = runTest {
+        val engine = MockEngine { request ->
+            assertEquals("twinte_session=current-session-id", request.headers[HttpHeaders.Cookie])
+            respond(
+                content = "",
+                status = HttpStatusCode.Found,
+                headers = headersOf(
+                    HttpHeaders.SetCookie,
+                    "twinte_session=new-session-id; Path=/; HttpOnly",
+                ),
+            )
+        }
+        val api = KtorGoogleSessionApi(httpClient = HttpClient(engine))
+
+        val session = api.createSessionWithIdToken("id-token", TwinteSession("current-session-id"))
+
+        assertEquals("new-session-id", session.sessionId)
     }
 
     @Test

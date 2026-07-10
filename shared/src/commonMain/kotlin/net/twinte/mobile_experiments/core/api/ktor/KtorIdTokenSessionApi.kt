@@ -3,6 +3,7 @@ package net.twinte.mobile_experiments.core.api.ktor
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.forms.FormDataContent
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.HttpHeaders
@@ -19,8 +20,12 @@ internal suspend fun createSessionWithIdToken(
     providerPath: String,
     idToken: String,
     authorizationCode: String? = null,
+    currentSession: TwinteSession? = null,
 ): TwinteSession {
     val response = httpClient.post("$appBaseUrl/auth/v4/$providerPath/idToken") {
+        currentSession?.let {
+            header(HttpHeaders.Cookie, "${it.cookieName}=${it.sessionId}")
+        }
         setBody(
             FormDataContent(
                 Parameters.build {

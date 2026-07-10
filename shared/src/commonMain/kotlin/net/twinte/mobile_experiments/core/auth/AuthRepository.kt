@@ -3,6 +3,7 @@ package net.twinte.mobile_experiments.core.auth
 import io.ktor.http.HttpStatusCode
 import net.twinte.mobile_experiments.core.api.AuthApi
 import net.twinte.mobile_experiments.core.api.TwinteApiException
+import net.twinte.mobile_experiments.core.domain.AuthProvider
 import net.twinte.mobile_experiments.core.domain.User
 
 class AuthRepository(
@@ -23,13 +24,13 @@ class AuthRepository(
     }
 
     suspend fun signInWithGoogleIdToken(idToken: String): AuthSession {
-        val session = googleSessionApi.createSessionWithIdToken(idToken)
+        val session = googleSessionApi.createSessionWithIdToken(idToken, sessionStore.getSession())
         sessionStore.saveSessionId(session.sessionId)
         return AuthSession(session.sessionId, authApi.getMe(session))
     }
 
     suspend fun signInWithAppleCredential(credential: AppleSignInCredential): AuthSession {
-        val session = appleSessionApi.createSessionWithCredential(credential)
+        val session = appleSessionApi.createSessionWithCredential(credential, sessionStore.getSession())
         sessionStore.saveSessionId(session.sessionId)
         return AuthSession(session.sessionId, authApi.getMe(session))
     }
@@ -38,8 +39,28 @@ class AuthRepository(
         return authApi.getMe(requireSession())
     }
 
-    suspend fun clearSession() {
-        sessionStore.clearSessionId()
+    suspend fun signOut() {
+        val session = sessionStore.getSession()
+        try {
+            session?.let { authApi.logout(it) }
+        } finally {
+            sessionStore.clearSessionId()
+        }
+    }
+
+    suspend fun deleteUserAuthentication(provider: AuthProvider): AuthSession {
+        val session = requireSession()
+        authApi.deleteUserAuthentication(session, provider)
+        return AuthSession(session.sessionId, authApi.getMe(session))
+    }
+
+    suspend fun deleteAccount() {
+        val session = requireSession()
+        try {
+            authApi.deleteAccount(session)
+        } finally {
+            sessionStore.clearSessionId()
+        }
     }
 
     private suspend fun requireSession(): TwinteSession =
