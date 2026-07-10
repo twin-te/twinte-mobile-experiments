@@ -127,6 +127,18 @@ private fun AuthScreen(
         )
     }
 
+    fun applyFailure(error: Throwable) {
+        val failure = error.toAuthFailure()
+        uiState = if (failure == AuthFailure.Unauthenticated) {
+            uiState.signedOut(failure.toStatusMessage())
+        } else {
+            uiState.copy(
+                message = failure.toStatusMessage(),
+                isLoading = false,
+            )
+        }
+    }
+
     LaunchedEffect(authRepository) {
         uiState = uiState.copy(isLoading = true, message = "Restoring session...")
         try {
@@ -140,7 +152,7 @@ private fun AuthScreen(
                     )
                 }
         } catch (error: Throwable) {
-            uiState = uiState.signedOut(error.toAuthFailure().toStatusMessage())
+            applyFailure(error)
         }
     }
 
@@ -153,7 +165,7 @@ private fun AuthScreen(
                 uiState = uiState.copy(message = "Creating session...")
                 applySession(authRepository.signInWithAppleCredential(credential))
             } catch (error: Throwable) {
-                uiState = uiState.signedOut(error.toAuthFailure().toStatusMessage())
+                applyFailure(error)
             }
         }
     }
@@ -169,7 +181,7 @@ private fun AuthScreen(
                     isLoading = false,
                 )
             } catch (error: Throwable) {
-                uiState = uiState.signedOut(error.toAuthFailure().toStatusMessage())
+                applyFailure(error)
             }
         }
     }
@@ -183,7 +195,7 @@ private fun AuthScreen(
                     message = "Unlinked ${provider.name}",
                 )
             } catch (error: Throwable) {
-                uiState = uiState.copy(isLoading = false, message = error.toAuthFailure().toStatusMessage())
+                applyFailure(error)
             }
         }
     }
@@ -195,7 +207,7 @@ private fun AuthScreen(
                 authRepository.signOut()
                 uiState = uiState.signedOut("Signed out")
             } catch (error: Throwable) {
-                uiState = uiState.signedOut(error.toAuthFailure().toStatusMessage())
+                applyFailure(error)
             }
         }
     }
@@ -207,7 +219,7 @@ private fun AuthScreen(
                 authRepository.deleteAccount()
                 uiState = uiState.signedOut("Deleted account")
             } catch (error: Throwable) {
-                uiState = uiState.signedOut(error.toAuthFailure().toStatusMessage())
+                applyFailure(error)
             }
         }
     }
@@ -346,7 +358,7 @@ private fun Throwable.toAuthFailure(): AuthFailure =
 
 private fun AuthFailure.toStatusMessage(): String =
     when (this) {
-        AuthFailure.Unauthenticated -> "Session is not authorized"
+        AuthFailure.Unauthenticated -> "Session expired"
         AuthFailure.Canceled -> "Canceled"
         is AuthFailure.Network -> "Network error"
         is AuthFailure.Unexpected -> cause?.message ?: "Unknown error"
