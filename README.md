@@ -49,8 +49,8 @@ Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-mu
 TEAM_ID=XXXXXXXXXX
 
 // Backend base URL
-// Default is production: https://app.twinte.net
-// Use staging when needed:
+// Debug defaults to staging; Release defaults to production.
+// Override when needed:
 APP_BASE_URL=https:/$()/app.stg.twinte.net
 
 // Google Sign-In
@@ -74,4 +74,4 @@ twinteAppBaseUrl=https://app.stg.twinte.net
 twinteGoogleServerClientId=xxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com
 ```
 
-`twinteAppBaseUrl` を指定しない場合は production の `https://app.twinte.net` が使われます。
+`twinteAppBaseUrl` を指定しない場合、Debug では staging の `https://app.stg.twinte.net`、Release では production の `https://app.twinte.net` が使われます。

@@ -34,11 +34,6 @@ android {
             "TWINTE_GOOGLE_SERVER_CLIENT_ID",
             "\"${googleServerClientId()}\"",
         )
-        buildConfigField(
-            "String",
-            "TWINTE_APP_BASE_URL",
-            "\"${appBaseUrl()}\"",
-        )
     }
     buildFeatures {
         buildConfig = true
@@ -49,8 +44,20 @@ android {
         }
     }
     buildTypes {
+        getByName("debug") {
+            buildConfigField(
+                "String",
+                "TWINTE_APP_BASE_URL",
+                "\"${appBaseUrl("https://app.stg.twinte.net")}\"",
+            )
+        }
         getByName("release") {
             isMinifyEnabled = false
+            buildConfigField(
+                "String",
+                "TWINTE_APP_BASE_URL",
+                "\"${appBaseUrl("https://app.twinte.net")}\"",
+            )
         }
     }
     compileOptions {
@@ -66,7 +73,7 @@ fun googleServerClientId(): String =
         .get()
         .replace("\"", "\\\"")
 
-fun appBaseUrl(): String =
+fun appBaseUrl(defaultUrl: String): String =
     listOfNotNull(
         providers.gradleProperty("twinteAppBaseUrl").orNull,
         providers.environmentVariable("TWINTE_APP_BASE_URL").orNull,
@@ -75,7 +82,7 @@ fun appBaseUrl(): String =
         .firstOrNull { it.isNotBlank() }
         .orEmpty()
         .trimEnd('/')
-        .ifBlank { "https://app.twinte.net" }
+        .ifBlank { defaultUrl }
         .replace("\"", "\\\"")
 
 fun localProperty(name: String): String {
