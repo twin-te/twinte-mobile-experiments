@@ -9,6 +9,8 @@ plugins {
 }
 
 kotlin {
+    jvm()
+
     listOf(
         iosArm64(),
         iosSimulatorArm64()
@@ -47,6 +49,9 @@ kotlin {
             implementation(libs.pbandk.runtime)
         }
         androidMain.dependencies {
+            implementation(libs.ktor.client.okhttp)
+        }
+        jvmMain.dependencies {
             implementation(libs.ktor.client.okhttp)
         }
         iosMain.dependencies {
