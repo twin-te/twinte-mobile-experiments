@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -25,6 +26,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import io.ktor.http.HttpStatusCode
+import io.ktor.client.network.sockets.ConnectTimeoutException
+import io.ktor.client.network.sockets.SocketTimeoutException
+import io.ktor.client.plugins.HttpRequestTimeoutException
 import kotlinx.coroutines.launch
 import net.twinte.mobile_experiments.core.api.TwinteApiException
 import net.twinte.mobile_experiments.core.api.ktor.KtorAppleSessionApi
@@ -33,6 +37,7 @@ import net.twinte.mobile_experiments.core.api.ktor.KtorGoogleSessionApi
 import net.twinte.mobile_experiments.core.api.ktor.rememberTwinteLoginHttpClient
 import net.twinte.mobile_experiments.core.api.ktor.rememberTwinteHttpClient
 import net.twinte.mobile_experiments.core.auth.AuthFailure
+import net.twinte.mobile_experiments.core.auth.AuthCanceledException
 import net.twinte.mobile_experiments.core.auth.AuthRepository
 import net.twinte.mobile_experiments.core.auth.AuthSession
 import net.twinte.mobile_experiments.core.auth.AuthState
@@ -117,6 +122,7 @@ private fun AuthScreen(
             ),
         )
     }
+    var showDeleteAccountConfirmation by remember { mutableStateOf(false) }
 
     fun applySession(session: AuthSession, message: String = "Signed in") {
         uiState = uiState.copy(
@@ -233,12 +239,14 @@ private fun AuthScreen(
                 uiState = uiState.copy(message = "Creating session...")
                 applySession(authRepository.signInWithGoogleIdToken(idToken))
             } catch (error: Throwable) {
-                uiState = uiState.signedOut(error.toAuthFailure().toStatusMessage())
+                applyFailure(error)
             }
         }
     }
 
     val loggedInUser = (uiState.authState as? AuthState.LoggedIn)?.user
+    val linkedProviders = loggedInUser?.authentications?.map { it.provider }?.toSet().orEmpty()
+    val canUnlinkProvider = linkedProviders.size > 1
 
     Column(
         modifier = Modifier
@@ -279,13 +287,13 @@ private fun AuthScreen(
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(
-                enabled = !uiState.isLoading,
+                enabled = loggedInUser != null && !uiState.isLoading,
                 onClick = ::refreshMe,
             ) {
                 Text("getMe")
             }
             OutlinedButton(
-                enabled = !uiState.isLoading,
+                enabled = loggedInUser != null && !uiState.isLoading,
                 colors = ButtonDefaults.outlinedButtonColors(
                     contentColor = MaterialTheme.colorScheme.error,
                 ),
@@ -295,18 +303,24 @@ private fun AuthScreen(
             }
         }
         loggedInUser?.let {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    enabled = !uiState.isLoading,
-                    onClick = { deleteUserAuthentication(AuthProvider.Google) },
-                ) {
-                    Text("Unlink Google")
-                }
-                OutlinedButton(
-                    enabled = !uiState.isLoading,
-                    onClick = { deleteUserAuthentication(AuthProvider.Apple) },
-                ) {
-                    Text("Unlink Apple")
+            if (canUnlinkProvider) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (AuthProvider.Google in linkedProviders) {
+                        OutlinedButton(
+                            enabled = !uiState.isLoading,
+                            onClick = { deleteUserAuthentication(AuthProvider.Google) },
+                        ) {
+                            Text("Unlink Google")
+                        }
+                    }
+                    if (AuthProvider.Apple in linkedProviders) {
+                        OutlinedButton(
+                            enabled = !uiState.isLoading,
+                            onClick = { deleteUserAuthentication(AuthProvider.Apple) },
+                        ) {
+                            Text("Unlink Apple")
+                        }
+                    }
                 }
             }
             OutlinedButton(
@@ -314,11 +328,37 @@ private fun AuthScreen(
                 colors = ButtonDefaults.outlinedButtonColors(
                     contentColor = MaterialTheme.colorScheme.error,
                 ),
-                onClick = ::deleteAccount,
+                onClick = { showDeleteAccountConfirmation = true },
             ) {
                 Text("Delete Account")
             }
         }
+    }
+
+    if (showDeleteAccountConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAccountConfirmation = false },
+            title = { Text("Delete account?") },
+            text = { Text("This permanently deletes your account and cannot be undone.") },
+            confirmButton = {
+                Button(
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                    ),
+                    onClick = {
+                        showDeleteAccountConfirmation = false
+                        deleteAccount()
+                    },
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { showDeleteAccountConfirmation = false }) {
+                    Text("Cancel")
+                }
+            },
+        )
     }
 }
 
@@ -349,6 +389,11 @@ private fun initialMessage(
 
 private fun Throwable.toAuthFailure(): AuthFailure =
     when (this) {
+        is AuthCanceledException -> AuthFailure.Canceled
+        is HttpRequestTimeoutException,
+        is ConnectTimeoutException,
+        is SocketTimeoutException,
+        -> AuthFailure.Network(this)
         is TwinteApiException -> when (status) {
             HttpStatusCode.Unauthorized -> AuthFailure.Unauthenticated
             else -> AuthFailure.Unexpected(this)

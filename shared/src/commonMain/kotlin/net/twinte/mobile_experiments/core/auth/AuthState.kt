@@ -19,3 +19,5 @@ sealed class AuthFailure(message: String? = null, cause: Throwable? = null) : Ex
 
     class Unexpected(cause: Throwable? = null) : AuthFailure(cause = cause)
 }
+
+class AuthCanceledException : Exception()
