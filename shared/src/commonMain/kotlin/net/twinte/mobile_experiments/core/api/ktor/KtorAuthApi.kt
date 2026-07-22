@@ -36,12 +36,12 @@ import pbandk.json.encodeToJsonString
 class KtorAuthApi(
     private val apiBaseUrl: Url = Url("https://app.twinte.net/api/v4"),
     private val appBaseUrl: Url = Url("https://app.twinte.net"),
-    private val httpClient: HttpClient = HttpClient(),
+    private val httpClient: HttpClient,
 ) : AuthApi {
     constructor(
         apiBaseUrl: String,
         appBaseUrl: String = apiBaseUrl.removeSuffix("/api/v4"),
-        httpClient: HttpClient = HttpClient(),
+        httpClient: HttpClient,
     ) : this(
         apiBaseUrl = Url(apiBaseUrl.trimEnd('/')),
         appBaseUrl = Url(appBaseUrl.trimEnd('/')),
@@ -58,14 +58,16 @@ class KtorAuthApi(
     }
 
     override suspend fun logout(session: TwinteSession) {
-        val response = httpClient.get(authUrl("logout")) {
-            header(HttpHeaders.Cookie, "${session.cookieName}=${session.sessionId}")
-            url {
-                parameters.append("redirect_url", appBaseUrl.toString())
+        val response = mapKtorNetworkErrors {
+            httpClient.get(authUrl("logout")) {
+                header(HttpHeaders.Cookie, "${session.cookieName}=${session.sessionId}")
+                url {
+                    parameters.append("redirect_url", appBaseUrl.toString())
+                }
             }
         }
         if (!response.status.isSuccess() && response.status != HttpStatusCode.Found) {
-            throw TwinteApiException(response.status, response.body<String>())
+            throw TwinteApiException(response.status.value, response.body<String>())
         }
     }
 
@@ -90,16 +92,18 @@ class KtorAuthApi(
         method: String,
         requestBody: String,
     ): String {
-        val response = httpClient.post(connectUrl("auth.v1.AuthService", method)) {
-            accept(ContentType.Application.Json)
-            contentType(ContentType.Application.Json)
-            header("Connect-Protocol-Version", "1")
-            header(HttpHeaders.Cookie, "${session.cookieName}=${session.sessionId}")
-            setBody(requestBody)
+        val response = mapKtorNetworkErrors {
+            httpClient.post(connectUrl("auth.v1.AuthService", method)) {
+                accept(ContentType.Application.Json)
+                contentType(ContentType.Application.Json)
+                header("Connect-Protocol-Version", "1")
+                header(HttpHeaders.Cookie, "${session.cookieName}=${session.sessionId}")
+                setBody(requestBody)
+            }
         }
         val body = response.body<String>()
         if (!response.status.isSuccess()) {
-            throw TwinteApiException(response.status, body)
+            throw TwinteApiException(response.status.value, body)
         }
         return body
     }

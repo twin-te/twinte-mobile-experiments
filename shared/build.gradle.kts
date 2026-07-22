@@ -46,6 +46,7 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.ktor.client.core)
+            implementation(libs.kotlinx.coroutines.core)
             implementation(libs.pbandk.runtime)
         }
         androidMain.dependencies {

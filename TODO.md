@@ -20,14 +20,14 @@
 - [ ] Google/Apple の ID token とともに `challenge_id` を送信する。
 - [ ] Apple の ID token、`authorization_code`、`challenge_id` をまとめて送信する。
 - [ ] challenge の欠落、期限切れ、再利用、provider 不一致を処理し、既存のローカルセッションを上書きしない。
-- [ ] 新しいセッションは `getMe` に成功してからローカルへ保存する。
+- [x] 新しいセッションは `getMe` に成功してからローカルへ保存する。
 
 ### Logout とエラー処理
 
 - [ ] 更新済み Backend のデプロイ後、Mobile の logout を GET から POST に切り替える。
-- [ ] リモート logout に失敗してもローカルセッションは削除し、ローカルのみの logout だったことを表示する。
-- [ ] Google/Apple のユーザーキャンセルを認証エラーと区別する。
-- [ ] provider 追加操作のキャンセルや失敗時に、ログイン済み UI 状態を維持する。
+- [x] リモート logout に失敗してもローカルセッションは削除し、ローカルのみの logout だったことを表示する。
+- [x] Google/Apple のユーザーキャンセルを認証エラーと区別する。
+- [x] provider 追加操作のキャンセルや失敗時に、ログイン済み UI 状態を維持する。
 - [ ] timeout、オフライン、未認証、予期しないエラーの表示を両プラットフォームで確認する。
 
 ### テストと動作確認
@@ -50,4 +50,4 @@
 ## 後回しにした保守作業
 
 - [ ] protobuf の source/generated code 同期と CI 検証を再検討する。
-- [ ] `App.kt` の認証状態と副作用を ViewModel 相当の state holder に分離することを検討する。
+- [x] `App.kt` の認証状態と副作用を ViewModel 相当の state holder に分離することを検討する。

@@ -108,7 +108,7 @@ class KtorGoogleSessionApiTest {
             api.createSessionWithIdToken("id-token")
         }
 
-        assertEquals(HttpStatusCode.InternalServerError, error.status)
+        assertEquals(HttpStatusCode.InternalServerError.value, error.statusCode)
         assertEquals("invalid id token audience", error.responseBody)
     }
 }

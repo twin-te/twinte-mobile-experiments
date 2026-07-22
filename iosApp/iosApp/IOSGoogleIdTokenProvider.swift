@@ -8,14 +8,14 @@ final class IOSGoogleIdTokenProvider: NSObject, GoogleIdTokenProvider {
         GoogleSignInConfig.current != nil
     }
 
-    func requestIdToken(completionHandler: @escaping (String?, Error?) -> Void) {
+    func requestIdToken(completionHandler: @escaping (GoogleIdTokenResult?, Error?) -> Void) {
         Task { @MainActor in
             guard let config = GoogleSignInConfig.current else {
-                completionHandler(nil, nil)
+                completionHandler(GoogleIdTokenResult(idToken: nil, isCanceled: false), nil)
                 return
             }
             guard let presentingViewController = UIApplication.shared.topViewController else {
-                completionHandler(nil, nil)
+                completionHandler(GoogleIdTokenResult(idToken: nil, isCanceled: false), nil)
                 return
             }
 
@@ -26,8 +26,18 @@ final class IOSGoogleIdTokenProvider: NSObject, GoogleIdTokenProvider {
                     withPresenting: presentingViewController
                 )
                 let user = try await result.user.refreshTokensIfNeeded()
-                completionHandler(user.idToken?.tokenString, nil)
+                completionHandler(
+                    GoogleIdTokenResult(
+                        idToken: user.idToken?.tokenString,
+                        isCanceled: false
+                    ),
+                    nil
+                )
             } catch {
+                if (error as NSError).code == GIDSignInError.canceled.rawValue {
+                    completionHandler(GoogleIdTokenResult(idToken: nil, isCanceled: true), nil)
+                    return
+                }
                 completionHandler(nil, error)
             }
         }

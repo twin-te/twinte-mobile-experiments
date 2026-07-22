@@ -10,14 +10,30 @@ final class IOSAppleSignInCredentialProvider: NSObject, AppleSignInCredentialPro
 
     private var currentCoordinator: AppleAuthorizationCoordinator?
 
-    func requestCredential(completionHandler: @escaping (AppleSignInCredential?, Error?) -> Void) {
+    func requestCredential(completionHandler: @escaping (AppleSignInCredentialResult?, Error?) -> Void) {
         Task { @MainActor in
             let request = ASAuthorizationAppleIDProvider().createRequest()
             let coordinator = AppleAuthorizationCoordinator { [weak self] result in
                 self?.currentCoordinator = nil
                 switch result {
-                case .success(let credential):
-                    completionHandler(credential, nil)
+                case .success(let outcome):
+                    switch outcome {
+                    case .credential(let credential):
+                        completionHandler(
+                            AppleSignInCredentialResult(credential: credential, isCanceled: false),
+                            nil
+                        )
+                    case .canceled:
+                        completionHandler(
+                            AppleSignInCredentialResult(credential: nil, isCanceled: true),
+                            nil
+                        )
+                    case .unavailable:
+                        completionHandler(
+                            AppleSignInCredentialResult(credential: nil, isCanceled: false),
+                            nil
+                        )
+                    }
                 case .failure(let error):
                     completionHandler(nil, error)
                 }
@@ -35,9 +51,9 @@ final class IOSAppleSignInCredentialProvider: NSObject, AppleSignInCredentialPro
 private final class AppleAuthorizationCoordinator: NSObject,
     ASAuthorizationControllerDelegate,
     ASAuthorizationControllerPresentationContextProviding {
-    private let completion: (Result<AppleSignInCredential?, Error>) -> Void
+    private let completion: (Result<AppleAuthorizationOutcome, Error>) -> Void
 
-    init(completion: @escaping (Result<AppleSignInCredential?, Error>) -> Void) {
+    init(completion: @escaping (Result<AppleAuthorizationOutcome, Error>) -> Void) {
         self.completion = completion
     }
 
@@ -51,7 +67,7 @@ private final class AppleAuthorizationCoordinator: NSObject,
             let idToken = String(data: identityToken, encoding: .utf8),
             !idToken.isEmpty
         else {
-            completion(.success(nil))
+            completion(.success(.unavailable))
             return
         }
 
@@ -61,9 +77,11 @@ private final class AppleAuthorizationCoordinator: NSObject,
 
         completion(
             .success(
-                AppleSignInCredential(
-                    idToken: idToken,
-                    authorizationCode: authorizationCode
+                .credential(
+                    AppleSignInCredential(
+                        idToken: idToken,
+                        authorizationCode: authorizationCode
+                    )
                 )
             )
         )
@@ -75,7 +93,7 @@ private final class AppleAuthorizationCoordinator: NSObject,
     ) {
         if let authorizationError = error as? ASAuthorizationError,
            authorizationError.code == .canceled {
-            completion(.success(nil))
+            completion(.success(.canceled))
             return
         }
 
@@ -85,6 +103,12 @@ private final class AppleAuthorizationCoordinator: NSObject,
     func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
         UIApplication.shared.keyWindow ?? ASPresentationAnchor()
     }
+}
+
+private enum AppleAuthorizationOutcome {
+    case credential(AppleSignInCredential)
+    case canceled
+    case unavailable
 }
 
 private extension UIApplication {

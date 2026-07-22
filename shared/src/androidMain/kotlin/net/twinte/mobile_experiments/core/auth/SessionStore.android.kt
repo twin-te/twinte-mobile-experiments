@@ -17,7 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Composable
-actual fun rememberSessionStore(): SessionStore {
+fun rememberAndroidSessionStore(): SessionStore {
     val context = LocalContext.current.applicationContext
     return remember(context) {
         SecureKeyValueStoreSessionStore(

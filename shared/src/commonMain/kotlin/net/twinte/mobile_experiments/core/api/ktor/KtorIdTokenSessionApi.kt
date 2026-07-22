@@ -22,23 +22,25 @@ internal suspend fun createSessionWithIdToken(
     authorizationCode: String? = null,
     currentSession: TwinteSession? = null,
 ): TwinteSession {
-    val response = httpClient.post("$appBaseUrl/auth/v4/$providerPath/idToken") {
-        currentSession?.let {
-            header(HttpHeaders.Cookie, "${it.cookieName}=${it.sessionId}")
+    val response = mapKtorNetworkErrors {
+        httpClient.post("$appBaseUrl/auth/v4/$providerPath/idToken") {
+            currentSession?.let {
+                header(HttpHeaders.Cookie, "${it.cookieName}=${it.sessionId}")
+            }
+            setBody(
+                FormDataContent(
+                    Parameters.build {
+                        append("token", idToken)
+                        authorizationCode?.let { append("authorization_code", it) }
+                        append("redirect_url", appBaseUrl.toString())
+                    },
+                ),
+            )
         }
-        setBody(
-            FormDataContent(
-                Parameters.build {
-                    append("token", idToken)
-                    authorizationCode?.let { append("authorization_code", it) }
-                    append("redirect_url", appBaseUrl.toString())
-                },
-            ),
-        )
     }
     if (response.status != HttpStatusCode.Found) {
         val body = response.body<String>()
-        throw TwinteApiException(response.status, body.ifBlank { "Session creation failed" })
+        throw TwinteApiException(response.status.value, body.ifBlank { "Session creation failed" })
     }
     response.headers.getAll(HttpHeaders.SetCookie)
         .orEmpty()
@@ -51,7 +53,7 @@ internal suspend fun createSessionWithIdToken(
         ?.value
         ?.takeIf { it.isNotEmpty() }
         ?.let { return TwinteSession(sessionId = it) }
-    throw TwinteApiException(response.status, "Session cookie is missing")
+    throw TwinteApiException(response.status.value, "Session cookie is missing")
 }
 
 private const val SessionCookieName = "twinte_session"

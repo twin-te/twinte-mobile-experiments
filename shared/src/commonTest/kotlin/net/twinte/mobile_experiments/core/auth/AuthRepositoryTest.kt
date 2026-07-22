@@ -1,6 +1,5 @@
 package net.twinte.mobile_experiments.core.auth
 
-import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.test.runTest
 import net.twinte.mobile_experiments.core.api.AuthApi
 import net.twinte.mobile_experiments.core.api.TwinteApiException
@@ -10,6 +9,7 @@ import net.twinte.mobile_experiments.core.domain.UserAuthentication
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 
 class AuthRepositoryTest {
@@ -68,10 +68,30 @@ class AuthRepositoryTest {
     }
 
     @Test
+    fun signInKeepsPreviousSessionWhenNewSessionValidationFails() = runTest {
+        val store = MemorySessionStore("previous-session-id")
+        val authApi = FakeAuthApi(
+            getMeResult = Result.failure(TwinteApiException(500, "failed")),
+        )
+        val repository = AuthRepository(
+            sessionStore = store,
+            authApi = authApi,
+            googleSessionApi = FakeGoogleSessionApi(TwinteSession("new-session-id")),
+            appleSessionApi = FakeAppleSessionApi(TwinteSession("unused")),
+        )
+
+        assertFailsWith<TwinteApiException> {
+            repository.signInWithGoogleIdToken("id-token")
+        }
+
+        assertEquals("previous-session-id", store.getSessionId())
+    }
+
+    @Test
     fun restoreSessionReturnsNullAndClearsStoredSessionOnUnauthorized() = runTest {
         val store = MemorySessionStore("stale-session-id")
         val authApi = FakeAuthApi(
-            getMeResult = Result.failure(TwinteApiException(HttpStatusCode.Unauthorized, "unauthorized")),
+            getMeResult = Result.failure(TwinteApiException(401, "unauthorized")),
         )
         val repository = AuthRepository(
             sessionStore = store,
@@ -88,7 +108,7 @@ class AuthRepositoryTest {
     fun getMeClearsStoredSessionOnUnauthorized() = runTest {
         val store = MemorySessionStore("stale-session-id")
         val authApi = FakeAuthApi(
-            getMeResult = Result.failure(TwinteApiException(HttpStatusCode.Unauthorized, "unauthorized")),
+            getMeResult = Result.failure(TwinteApiException(401, "unauthorized")),
         )
         val repository = AuthRepository(
             sessionStore = store,
@@ -114,17 +134,18 @@ class AuthRepositoryTest {
             appleSessionApi = FakeAppleSessionApi(TwinteSession("unused")),
         )
 
-        repository.signOut()
+        val result = repository.signOut()
 
         assertEquals(TwinteSession("session-id"), authApi.loggedOutSession)
         assertNull(store.getSessionId())
+        assertEquals(SignOutResult.RemoteAndLocal, result)
     }
 
     @Test
     fun signOutClearsSessionEvenWhenRemoteLogoutFails() = runTest {
         val store = MemorySessionStore("session-id")
         val authApi = FakeAuthApi(
-            logoutResult = Result.failure(TwinteApiException(HttpStatusCode.InternalServerError, "failed")),
+            logoutResult = Result.failure(TwinteApiException(500, "failed")),
         )
         val repository = AuthRepository(
             sessionStore = store,
@@ -133,10 +154,11 @@ class AuthRepositoryTest {
             appleSessionApi = FakeAppleSessionApi(TwinteSession("unused")),
         )
 
-        repository.signOut()
+        val result = repository.signOut()
 
         assertEquals(TwinteSession("session-id"), authApi.loggedOutSession)
         assertNull(store.getSessionId())
+        assertIs<SignOutResult.LocalOnly>(result)
     }
 
     @Test
@@ -162,7 +184,7 @@ class AuthRepositoryTest {
         val store = MemorySessionStore("stale-session-id")
         val authApi = FakeAuthApi(
             deleteUserAuthenticationResult = Result.failure(
-                TwinteApiException(HttpStatusCode.Unauthorized, "unauthorized"),
+                TwinteApiException(401, "unauthorized"),
             ),
         )
         val repository = AuthRepository(
@@ -199,7 +221,7 @@ class AuthRepositoryTest {
     fun deleteAccountKeepsStoredSessionWhenRequestFailsWithoutUnauthorized() = runTest {
         val store = MemorySessionStore("session-id")
         val authApi = FakeAuthApi(
-            deleteAccountResult = Result.failure(TwinteApiException(HttpStatusCode.InternalServerError, "failed")),
+            deleteAccountResult = Result.failure(TwinteApiException(500, "failed")),
         )
         val repository = AuthRepository(
             sessionStore = store,

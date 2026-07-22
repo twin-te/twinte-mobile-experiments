@@ -8,15 +8,11 @@ import net.twinte.mobile_experiments.core.auth.TwinteSession
 
 class KtorAppleSessionApi(
     private val appBaseUrl: Url = Url("https://app.twinte.net"),
-    private val httpClient: HttpClient = HttpClient {
-        followRedirects = false
-    },
+    private val httpClient: HttpClient,
 ) : AppleSessionApi {
     constructor(
         appBaseUrl: String,
-        httpClient: HttpClient = HttpClient {
-            followRedirects = false
-        },
+        httpClient: HttpClient,
     ) : this(Url(appBaseUrl.trimEnd('/')), httpClient)
 
     override suspend fun createSessionWithCredential(

@@ -7,17 +7,22 @@ sealed interface AuthState {
 
     data object LoggedOut : AuthState
 
-    data class LoggedIn(val user: User) : AuthState
+    data class LoggedIn(val session: AuthSession) : AuthState {
+        val user: User
+            get() = session.user
+    }
 }
 
-sealed class AuthFailure(message: String? = null, cause: Throwable? = null) : Exception(message, cause) {
-    data object Unauthenticated : AuthFailure()
+sealed interface AuthFailure {
+    data object Unauthenticated : AuthFailure
 
-    data object Canceled : AuthFailure()
+    data object Canceled : AuthFailure
 
-    class Network(cause: Throwable? = null) : AuthFailure(cause = cause)
+    data object CredentialUnavailable : AuthFailure
 
-    class Unexpected(cause: Throwable? = null) : AuthFailure(cause = cause)
+    data class Network(val cause: Throwable? = null) : AuthFailure
+
+    data class Unexpected(val cause: Throwable? = null) : AuthFailure
 }
 
 class AuthCanceledException : Exception()

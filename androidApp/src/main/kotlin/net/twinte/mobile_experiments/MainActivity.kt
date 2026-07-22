@@ -10,9 +10,12 @@ import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
 import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
+import net.twinte.mobile_experiments.core.auth.rememberAndroidSessionStore
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -21,6 +24,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             App(
+                sessionStore = rememberAndroidSessionStore(),
                 googleIdTokenProvider = AndroidGoogleIdTokenProvider(
                     activity = this,
                     serverClientId = BuildConfig.TWINTE_GOOGLE_SERVER_CLIENT_ID,
@@ -38,21 +42,23 @@ private class AndroidGoogleIdTokenProvider(
     override val isConfigured: Boolean
         get() = serverClientId.isNotBlank()
 
-    override suspend fun requestIdToken(): String? {
+    override suspend fun requestIdToken(): GoogleIdTokenResult {
         val request = GetCredentialRequest.Builder()
             .addCredentialOption(
                 GetSignInWithGoogleOption.Builder(serverClientId).build(),
             )
             .build()
 
-        return runCatching {
+        val credential = try {
             CredentialManager.create(activity).getCredential(activity, request)
-        }.getOrElse { error ->
-            if (error is GetCredentialException) {
-                return null
-            }
+        } catch (_: GetCredentialCancellationException) {
+            return GoogleIdTokenResult(isCanceled = true)
+        } catch (_: NoCredentialException) {
+            return GoogleIdTokenResult()
+        } catch (error: GetCredentialException) {
             throw error
-        }.extractGoogleIdToken()
+        }
+        return GoogleIdTokenResult(idToken = credential.extractGoogleIdToken())
     }
 }
 

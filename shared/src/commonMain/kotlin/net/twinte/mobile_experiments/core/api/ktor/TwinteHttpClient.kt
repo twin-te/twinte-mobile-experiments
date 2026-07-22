@@ -7,22 +7,19 @@ import io.ktor.client.HttpClient
 
 @Composable
 fun rememberTwinteHttpClient(): HttpClient {
-    val httpClient = remember {
-        HttpClient()
-    }
-    DisposableEffect(httpClient) {
-        onDispose {
-            httpClient.close()
-        }
-    }
-    return httpClient
+    return rememberTwinteHttpClient(followRedirects = true)
 }
 
 @Composable
 fun rememberTwinteLoginHttpClient(): HttpClient {
+    return rememberTwinteHttpClient(followRedirects = false)
+}
+
+@Composable
+private fun rememberTwinteHttpClient(followRedirects: Boolean): HttpClient {
     val httpClient = remember {
         HttpClient {
-            followRedirects = false
+            this.followRedirects = followRedirects
         }
     }
     DisposableEffect(httpClient) {

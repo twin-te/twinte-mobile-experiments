@@ -1,7 +1,5 @@
 package net.twinte.mobile_experiments.core.auth
 
-import androidx.compose.runtime.Composable
-
 interface SessionStore {
     suspend fun getSessionId(): String?
 
@@ -52,6 +50,3 @@ class MemorySessionStore(
         sessionId = null
     }
 }
-
-@Composable
-expect fun rememberSessionStore(): SessionStore

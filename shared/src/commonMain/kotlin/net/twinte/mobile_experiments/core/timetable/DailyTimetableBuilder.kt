@@ -66,9 +66,10 @@ class DailyTimetableBuilder {
             }
             .groupBy({ it.first }, { it.second })
 
-        val slots = (1..6).map { period ->
-            val start = PeriodTimes.startLabel(period)
-            val end = PeriodTimes.endLabel(period)
+        val slots = PeriodTimes.regular.map { periodTime ->
+            val period = periodTime.period
+            val start = periodTime.start.toString()
+            val end = periodTime.end.toString()
             val courses = coursesByPeriod[period].orEmpty()
             when (courses.size) {
                 0 -> DailyCourseSlot.Empty(period, start, end)

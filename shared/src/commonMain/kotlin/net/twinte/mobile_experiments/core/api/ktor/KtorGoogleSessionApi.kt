@@ -7,15 +7,11 @@ import net.twinte.mobile_experiments.core.auth.TwinteSession
 
 class KtorGoogleSessionApi(
     private val appBaseUrl: Url = Url("https://app.twinte.net"),
-    private val httpClient: HttpClient = HttpClient {
-        followRedirects = false
-    },
+    private val httpClient: HttpClient,
 ) : GoogleSessionApi {
     constructor(
         appBaseUrl: String,
-        httpClient: HttpClient = HttpClient {
-            followRedirects = false
-        },
+        httpClient: HttpClient,
     ) : this(Url(appBaseUrl.trimEnd('/')), httpClient)
 
     override suspend fun createSessionWithIdToken(idToken: String, currentSession: TwinteSession?): TwinteSession =

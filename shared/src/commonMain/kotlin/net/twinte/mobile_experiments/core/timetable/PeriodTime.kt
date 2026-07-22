@@ -22,10 +22,4 @@ object PeriodTimes {
         PeriodTime(5, SimpleTime(15, 15), SimpleTime(16, 30)),
         PeriodTime(6, SimpleTime(16, 45), SimpleTime(18, 0)),
     )
-
-    fun startLabel(period: Int): String =
-        regular.firstOrNull { it.period == period }?.start?.toString() ?: "-"
-
-    fun endLabel(period: Int): String =
-        regular.firstOrNull { it.period == period }?.end?.toString() ?: "-"
 }
