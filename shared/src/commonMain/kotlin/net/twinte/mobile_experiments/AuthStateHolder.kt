@@ -95,6 +95,10 @@ internal class AuthStateHolder(
         applySession(authService.signInWithGoogleIdToken(idToken))
     }
 
+    fun handleExternalFailure(error: Throwable) {
+        applyFailure(error)
+    }
+
     private fun launchOperation(message: String, operation: suspend () -> Unit) {
         if (_uiState.value.isLoading) return
         scope.launch {

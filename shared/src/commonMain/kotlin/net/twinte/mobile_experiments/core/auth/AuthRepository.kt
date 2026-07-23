@@ -106,8 +106,5 @@ sealed interface SignOutResult {
     data class LocalOnly(val cause: Throwable) : SignOutResult
 }
 
-private suspend fun SessionStore.getSession(): TwinteSession? =
-    getSessionId()?.let(::TwinteSession)
-
 private fun Throwable.isUnauthorized(): Boolean =
     this is TwinteApiException && isUnauthorized

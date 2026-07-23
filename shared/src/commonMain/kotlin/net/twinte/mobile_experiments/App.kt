@@ -26,9 +26,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import net.twinte.mobile_experiments.core.api.ktor.KtorAppleSessionApi
 import net.twinte.mobile_experiments.core.api.ktor.KtorAuthApi
 import net.twinte.mobile_experiments.core.api.ktor.KtorGoogleSessionApi
+import net.twinte.mobile_experiments.core.api.ktor.KtorTimetableApi
 import net.twinte.mobile_experiments.core.api.ktor.rememberTwinteHttpClient
 import net.twinte.mobile_experiments.core.api.ktor.rememberTwinteLoginHttpClient
 import net.twinte.mobile_experiments.core.auth.AuthRepository
@@ -36,6 +39,7 @@ import net.twinte.mobile_experiments.core.auth.AuthState
 import net.twinte.mobile_experiments.core.auth.MemorySessionStore
 import net.twinte.mobile_experiments.core.auth.SessionStore
 import net.twinte.mobile_experiments.core.domain.AuthProvider
+import net.twinte.mobile_experiments.core.timetable.TimetableRepository
 
 @Composable
 fun App(
@@ -55,6 +59,12 @@ fun App(
             appleSessionApi = KtorAppleSessionApi(appBaseUrl = normalizedAppBaseUrl, httpClient = loginHttpClient),
         )
     }
+    val timetableRepository = remember(sessionStore, httpClient, normalizedAppBaseUrl) {
+        TimetableRepository(
+            sessionStore = sessionStore,
+            timetableApi = KtorTimetableApi(apiBaseUrl = "$normalizedAppBaseUrl/api/v4", httpClient = httpClient),
+        )
+    }
     val scope = rememberCoroutineScope()
     val stateHolder = remember(
         authRepository,
@@ -70,6 +80,32 @@ fun App(
         )
     }
     val uiState by stateHolder.uiState.collectAsState()
+    var timetableUiState by remember { mutableStateOf(TimetableUiState()) }
+
+    fun loadTimetable() {
+        if (timetableUiState.isLoading) return
+        scope.launch {
+            timetableUiState = timetableUiState.copy(isLoading = true, message = "Loading timetable...")
+            try {
+                val courses = timetableRepository.listRegisteredCourses()
+                val tags = timetableRepository.listTags()
+                timetableUiState = TimetableUiState(
+                    message = "Loaded timetable",
+                    courseCount = courses.size,
+                    tagCount = tags.size,
+                    firstCourseName = courses.firstOrNull()?.name,
+                )
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                stateHolder.handleExternalFailure(error)
+                timetableUiState = timetableUiState.copy(
+                    message = error.message ?: "Failed to load timetable",
+                    isLoading = false,
+                )
+            }
+        }
+    }
 
     LaunchedEffect(stateHolder) {
         stateHolder.restoreSession()
@@ -90,6 +126,8 @@ fun App(
                 onUnlinkProvider = stateHolder::deleteUserAuthentication,
                 onSignOut = stateHolder::signOut,
                 onDeleteAccount = stateHolder::deleteAccount,
+                timetableUiState = timetableUiState,
+                onLoadTimetable = ::loadTimetable,
             )
         }
     }
@@ -112,6 +150,8 @@ private fun AuthScreen(
     onUnlinkProvider: (AuthProvider) -> Unit,
     onSignOut: () -> Unit,
     onDeleteAccount: () -> Unit,
+    timetableUiState: TimetableUiState,
+    onLoadTimetable: () -> Unit,
 ) {
     var showDeleteAccountConfirmation by remember { mutableStateOf(false) }
     val loggedInState = uiState.authState as? AuthState.LoggedIn
@@ -174,6 +214,25 @@ private fun AuthScreen(
             }
         }
         loggedInUser?.let {
+            OutlinedButton(
+                enabled = !uiState.isLoading && !timetableUiState.isLoading,
+                onClick = onLoadTimetable,
+            ) {
+                Text("Load Timetable")
+            }
+            Text(timetableUiState.message, style = MaterialTheme.typography.bodyMedium)
+            timetableUiState.courseCount?.let { count ->
+                Text("Registered courses: $count", style = MaterialTheme.typography.bodyMedium)
+            }
+            timetableUiState.tagCount?.let { count ->
+                Text("Tags: $count", style = MaterialTheme.typography.bodyMedium)
+            }
+            timetableUiState.firstCourseName?.let { name ->
+                Text("First course: $name", style = MaterialTheme.typography.bodyMedium)
+            }
+            if (timetableUiState.isLoading) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
             if (canUnlinkProvider) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (AuthProvider.Google in linkedProviders) {
@@ -232,3 +291,11 @@ private fun AuthScreen(
         )
     }
 }
+
+private data class TimetableUiState(
+    val message: String = "Timetable not loaded",
+    val isLoading: Boolean = false,
+    val courseCount: Int? = null,
+    val tagCount: Int? = null,
+    val firstCourseName: String? = null,
+)

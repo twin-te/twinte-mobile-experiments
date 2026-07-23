@@ -1,5 +1,6 @@
 package net.twinte.mobile_experiments.core.api
 
+import net.twinte.mobile_experiments.core.auth.TwinteSession
 import net.twinte.mobile_experiments.core.domain.Module
 import net.twinte.mobile_experiments.core.domain.RegisteredCourse
 import net.twinte.mobile_experiments.core.domain.SchoolCalendarEvent
@@ -13,9 +14,7 @@ data class DailyApiSnapshot(
 )
 
 interface TimetableApi {
-    suspend fun getByDate(date: String): DailyApiSnapshot
+    suspend fun listRegisteredCourses(session: TwinteSession, year: Int? = null): List<RegisteredCourse>
 
-    suspend fun listRegisteredCourses(year: Int? = null): List<RegisteredCourse>
-
-    suspend fun listTags(): List<Tag>
+    suspend fun listTags(session: TwinteSession): List<Tag>
 }
