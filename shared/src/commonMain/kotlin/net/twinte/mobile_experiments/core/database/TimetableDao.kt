@@ -1,0 +1,107 @@
+package net.twinte.mobile_experiments.core.database
+
+import androidx.room3.Dao
+import androidx.room3.Query
+import androidx.room3.Transaction
+import androidx.room3.Upsert
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+abstract class TimetableDao {
+    @Query(
+        """
+        SELECT * FROM registered_course
+        WHERE accountId = :accountId AND (:year IS NULL OR year = :year)
+        ORDER BY year DESC, name, id
+        """,
+    )
+    abstract fun observeCourses(accountId: String, year: Int?): Flow<List<RegisteredCourseEntity>>
+
+    @Query("SELECT * FROM course_method WHERE accountId = :accountId ORDER BY courseId, position")
+    abstract fun observeMethods(accountId: String): Flow<List<CourseMethodEntity>>
+
+    @Query("SELECT * FROM course_schedule WHERE accountId = :accountId ORDER BY courseId, position")
+    abstract fun observeSchedules(accountId: String): Flow<List<CourseScheduleEntity>>
+
+    @Query("SELECT * FROM registered_course_tag WHERE accountId = :accountId ORDER BY courseId, tagId")
+    abstract fun observeCourseTags(accountId: String): Flow<List<RegisteredCourseTagEntity>>
+
+    @Query("SELECT * FROM tag WHERE accountId = :accountId ORDER BY sortOrder, id")
+    abstract fun observeTags(accountId: String): Flow<List<TagEntity>>
+
+    @Query("SELECT * FROM sync_metadata WHERE accountId = :accountId AND resource = :resource")
+    abstract fun observeSyncMetadata(accountId: String, resource: String): Flow<SyncMetadataEntity?>
+
+    @Query("DELETE FROM registered_course WHERE accountId = :accountId")
+    protected abstract suspend fun deleteAllCourses(accountId: String)
+
+    @Query("DELETE FROM registered_course WHERE accountId = :accountId AND year = :year")
+    protected abstract suspend fun deleteCoursesByYear(accountId: String, year: Int)
+
+    @Query("DELETE FROM tag WHERE accountId = :accountId")
+    protected abstract suspend fun deleteTags(accountId: String)
+
+    @Query("DELETE FROM tag WHERE accountId = :accountId AND id NOT IN (:retainedTagIds)")
+    protected abstract suspend fun deleteTagsNotIn(accountId: String, retainedTagIds: List<String>)
+
+    @Upsert
+    protected abstract suspend fun insertCourses(courses: List<RegisteredCourseEntity>)
+
+    @Upsert
+    protected abstract suspend fun insertMethods(methods: List<CourseMethodEntity>)
+
+    @Upsert
+    protected abstract suspend fun insertSchedules(schedules: List<CourseScheduleEntity>)
+
+    @Upsert
+    protected abstract suspend fun insertTags(tags: List<TagEntity>)
+
+    @Upsert
+    protected abstract suspend fun insertCourseTags(courseTags: List<RegisteredCourseTagEntity>)
+
+    @Upsert
+    protected abstract suspend fun saveSyncMetadata(metadata: SyncMetadataEntity)
+
+    @Transaction
+    open suspend fun replaceSnapshot(
+        accountId: String,
+        year: Int?,
+        courses: List<RegisteredCourseEntity>,
+        methods: List<CourseMethodEntity>,
+        schedules: List<CourseScheduleEntity>,
+        tags: List<TagEntity>,
+        courseTags: List<RegisteredCourseTagEntity>,
+        syncedAtMillis: Long,
+    ) {
+        if (year == null) {
+            deleteAllCourses(accountId)
+            deleteTags(accountId)
+        } else {
+            deleteCoursesByYear(accountId, year)
+        }
+
+        if (courses.isNotEmpty()) insertCourses(courses)
+        if (methods.isNotEmpty()) insertMethods(methods)
+        if (schedules.isNotEmpty()) insertSchedules(schedules)
+        if (tags.isNotEmpty()) insertTags(tags)
+        if (year != null) {
+            if (tags.isEmpty()) {
+                deleteTags(accountId)
+            } else {
+                deleteTagsNotIn(accountId, tags.map { it.id })
+            }
+        }
+        if (courseTags.isNotEmpty()) insertCourseTags(courseTags)
+
+        saveSyncMetadata(
+            SyncMetadataEntity(
+                accountId = accountId,
+                resource = timetableResource(year),
+                lastSuccessfulSyncAtMillis = syncedAtMillis,
+            ),
+        )
+    }
+}
+
+internal fun timetableResource(year: Int?): String =
+    year?.let { "timetable:$it" } ?: "timetable:all"

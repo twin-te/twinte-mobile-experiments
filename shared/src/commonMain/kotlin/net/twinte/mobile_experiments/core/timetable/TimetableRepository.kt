@@ -1,26 +1,40 @@
 package net.twinte.mobile_experiments.core.timetable
 
+import kotlinx.coroutines.flow.Flow
 import net.twinte.mobile_experiments.core.api.TimetableApi
 import net.twinte.mobile_experiments.core.api.TwinteApiException
+import net.twinte.mobile_experiments.core.auth.AccountLocalDataSource
 import net.twinte.mobile_experiments.core.auth.SessionStore
 import net.twinte.mobile_experiments.core.auth.TwinteSession
 import net.twinte.mobile_experiments.core.auth.getSession
-import net.twinte.mobile_experiments.core.domain.RegisteredCourse
-import net.twinte.mobile_experiments.core.domain.Tag
+import kotlin.time.Clock
 
 class TimetableRepository(
     private val sessionStore: SessionStore,
+    private val accountLocalDataSource: AccountLocalDataSource,
     private val timetableApi: TimetableApi,
+    private val localDataSource: TimetableLocalDataSource,
+    private val nowMillis: () -> Long = { Clock.System.now().toEpochMilliseconds() },
 ) : TimetableService {
-    override suspend fun listRegisteredCourses(year: Int?): List<RegisteredCourse> =
-        withAuthenticatedSession { session ->
-            timetableApi.listRegisteredCourses(session, year)
-        }
+    override fun observeTimetable(accountId: String, year: Int?): Flow<TimetableSnapshot> =
+        localDataSource.observeSnapshot(accountId, year)
 
-    override suspend fun listTags(): List<Tag> =
-        withAuthenticatedSession { session ->
-            timetableApi.listTags(session)
+    override suspend fun refresh(accountId: String, year: Int?) {
+        require(accountLocalDataSource.getActiveUser()?.id == accountId) {
+            "The requested account is not active"
         }
+        withAuthenticatedSession { session ->
+            val courses = timetableApi.listRegisteredCourses(session, year)
+            val tags = timetableApi.listTags(session)
+            localDataSource.replaceSnapshot(
+                accountId = accountId,
+                year = year,
+                courses = courses,
+                tags = tags,
+                syncedAtMillis = nowMillis(),
+            )
+        }
+    }
 
     private suspend fun requireSession(): TwinteSession =
         requireNotNull(sessionStore.getSession()) { "No session" }
@@ -32,6 +46,7 @@ class TimetableRepository(
         }.onFailure { error ->
             if (error is TwinteApiException && error.isUnauthorized) {
                 sessionStore.clearSessionId()
+                accountLocalDataSource.clearActiveAccountAndData()
             }
         }.getOrThrow()
     }

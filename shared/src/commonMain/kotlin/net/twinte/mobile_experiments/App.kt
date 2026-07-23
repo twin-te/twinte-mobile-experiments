@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import net.twinte.mobile_experiments.core.api.ktor.KtorAppleSessionApi
 import net.twinte.mobile_experiments.core.api.ktor.KtorAuthApi
@@ -38,6 +39,9 @@ import net.twinte.mobile_experiments.core.auth.AuthRepository
 import net.twinte.mobile_experiments.core.auth.AuthState
 import net.twinte.mobile_experiments.core.auth.MemorySessionStore
 import net.twinte.mobile_experiments.core.auth.SessionStore
+import net.twinte.mobile_experiments.core.database.RoomAccountLocalDataSource
+import net.twinte.mobile_experiments.core.database.RoomTimetableLocalDataSource
+import net.twinte.mobile_experiments.core.database.rememberTwinteDatabase
 import net.twinte.mobile_experiments.core.domain.AuthProvider
 import net.twinte.mobile_experiments.core.timetable.TimetableRepository
 
@@ -51,18 +55,37 @@ fun App(
     val normalizedAppBaseUrl = appBaseUrl.trimEnd('/').ifBlank { "https://app.twinte.net" }
     val httpClient = rememberTwinteHttpClient()
     val loginHttpClient = rememberTwinteLoginHttpClient()
-    val authRepository = remember(sessionStore, httpClient, loginHttpClient, normalizedAppBaseUrl) {
+    val database = rememberTwinteDatabase()
+    val accountLocalDataSource = remember(database) {
+        RoomAccountLocalDataSource(database.accountDao())
+    }
+    val authRepository = remember(
+        sessionStore,
+        accountLocalDataSource,
+        httpClient,
+        loginHttpClient,
+        normalizedAppBaseUrl,
+    ) {
         AuthRepository(
             sessionStore = sessionStore,
             authApi = KtorAuthApi(apiBaseUrl = "$normalizedAppBaseUrl/api/v4", httpClient = httpClient),
             googleSessionApi = KtorGoogleSessionApi(appBaseUrl = normalizedAppBaseUrl, httpClient = loginHttpClient),
             appleSessionApi = KtorAppleSessionApi(appBaseUrl = normalizedAppBaseUrl, httpClient = loginHttpClient),
+            accountLocalDataSource = accountLocalDataSource,
         )
     }
-    val timetableRepository = remember(sessionStore, httpClient, normalizedAppBaseUrl) {
+    val timetableRepository = remember(
+        sessionStore,
+        accountLocalDataSource,
+        database,
+        httpClient,
+        normalizedAppBaseUrl,
+    ) {
         TimetableRepository(
             sessionStore = sessionStore,
+            accountLocalDataSource = accountLocalDataSource,
             timetableApi = KtorTimetableApi(apiBaseUrl = "$normalizedAppBaseUrl/api/v4", httpClient = httpClient),
+            localDataSource = RoomTimetableLocalDataSource(database.timetableDao()),
         )
     }
     val scope = rememberCoroutineScope()
@@ -82,25 +105,21 @@ fun App(
     val uiState by stateHolder.uiState.collectAsState()
     var timetableUiState by remember { mutableStateOf(TimetableUiState()) }
 
+    val loggedInUser = (uiState.authState as? AuthState.LoggedIn)?.user
+
     fun loadTimetable() {
         if (timetableUiState.isLoading) return
+        val accountId = loggedInUser?.id ?: return
         scope.launch {
-            timetableUiState = timetableUiState.copy(isLoading = true, message = "Loading timetable...")
+            timetableUiState = timetableUiState.copy(isLoading = true, message = "Refreshing timetable...")
             try {
-                val courses = timetableRepository.listRegisteredCourses()
-                val tags = timetableRepository.listTags()
-                timetableUiState = TimetableUiState(
-                    message = "Loaded timetable",
-                    courseCount = courses.size,
-                    tagCount = tags.size,
-                    firstCourseName = courses.firstOrNull()?.name,
-                )
+                timetableRepository.refresh(accountId)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
                 stateHolder.handleExternalFailure(error)
                 timetableUiState = timetableUiState.copy(
-                    message = error.message ?: "Failed to load timetable",
+                    message = "Refresh failed; showing saved timetable",
                     isLoading = false,
                 )
             }
@@ -109,6 +128,26 @@ fun App(
 
     LaunchedEffect(stateHolder) {
         stateHolder.restoreSession()
+    }
+    LaunchedEffect(loggedInUser?.id, timetableRepository) {
+        val accountId = loggedInUser?.id
+        if (accountId == null) {
+            timetableUiState = TimetableUiState()
+            return@LaunchedEffect
+        }
+        timetableRepository.observeTimetable(accountId).collect { snapshot ->
+            timetableUiState = TimetableUiState(
+                message = if (snapshot.lastSuccessfulSyncAtMillis == null) {
+                    "No saved timetable"
+                } else {
+                    "Showing saved timetable"
+                },
+                courseCount = snapshot.courses.size,
+                tagCount = snapshot.tags.size,
+                firstCourseName = snapshot.courses.firstOrNull()?.name,
+                lastSuccessfulSyncAtMillis = snapshot.lastSuccessfulSyncAtMillis,
+            )
+        }
     }
 
     MaterialTheme {
@@ -230,6 +269,9 @@ private fun AuthScreen(
             timetableUiState.firstCourseName?.let { name ->
                 Text("First course: $name", style = MaterialTheme.typography.bodyMedium)
             }
+            timetableUiState.lastSuccessfulSyncAtMillis?.let { syncedAt ->
+                Text("Last sync: $syncedAt", style = MaterialTheme.typography.bodyMedium)
+            }
             if (timetableUiState.isLoading) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
@@ -293,9 +335,10 @@ private fun AuthScreen(
 }
 
 private data class TimetableUiState(
-    val message: String = "Timetable not loaded",
+    val message: String = "No saved timetable",
     val isLoading: Boolean = false,
     val courseCount: Int? = null,
     val tagCount: Int? = null,
     val firstCourseName: String? = null,
+    val lastSuccessfulSyncAtMillis: Long? = null,
 )

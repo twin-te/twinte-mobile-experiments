@@ -1,10 +1,17 @@
 package net.twinte.mobile_experiments.core.timetable
 
+import kotlinx.coroutines.flow.Flow
 import net.twinte.mobile_experiments.core.domain.RegisteredCourse
 import net.twinte.mobile_experiments.core.domain.Tag
 
-interface TimetableService {
-    suspend fun listRegisteredCourses(year: Int? = null): List<RegisteredCourse>
+data class TimetableSnapshot(
+    val courses: List<RegisteredCourse> = emptyList(),
+    val tags: List<Tag> = emptyList(),
+    val lastSuccessfulSyncAtMillis: Long? = null,
+)
 
-    suspend fun listTags(): List<Tag>
+interface TimetableService {
+    fun observeTimetable(accountId: String, year: Int? = null): Flow<TimetableSnapshot>
+
+    suspend fun refresh(accountId: String, year: Int? = null)
 }

@@ -113,7 +113,10 @@ internal class AuthStateHolder(
         }
     }
 
-    private fun applySession(session: AuthSession, message: String = "Signed in") {
+    private fun applySession(
+        session: AuthSession,
+        message: String = if (session.isOffline) "Offline; using saved data" else "Signed in",
+    ) {
         _uiState.update {
             it.copy(
                 authState = AuthState.LoggedIn(session),
