@@ -1,9 +1,8 @@
 package net.twinte.mobile_experiments.core.api.ktor
 
-import io.ktor.client.network.sockets.ConnectTimeoutException
-import io.ktor.client.network.sockets.SocketTimeoutException
-import io.ktor.client.plugins.HttpRequestTimeoutException
+import io.ktor.util.network.UnresolvedAddressException
 import kotlinx.coroutines.CancellationException
+import kotlinx.io.IOException
 import net.twinte.mobile_experiments.core.api.TwinteNetworkException
 
 internal suspend fun <T> mapKtorNetworkErrors(block: suspend () -> T): T =
@@ -11,10 +10,8 @@ internal suspend fun <T> mapKtorNetworkErrors(block: suspend () -> T): T =
         block()
     } catch (error: CancellationException) {
         throw error
-    } catch (error: HttpRequestTimeoutException) {
+    } catch (error: IOException) {
         throw TwinteNetworkException(error)
-    } catch (error: ConnectTimeoutException) {
-        throw TwinteNetworkException(error)
-    } catch (error: SocketTimeoutException) {
+    } catch (error: UnresolvedAddressException) {
         throw TwinteNetworkException(error)
     }
