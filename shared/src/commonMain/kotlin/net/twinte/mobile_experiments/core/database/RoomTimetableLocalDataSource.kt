@@ -10,6 +10,7 @@ import net.twinte.mobile_experiments.core.domain.RegisteredCourse
 import net.twinte.mobile_experiments.core.domain.Tag
 import net.twinte.mobile_experiments.core.timetable.TimetableLocalDataSource
 import net.twinte.mobile_experiments.core.timetable.TimetableSnapshot
+import kotlin.time.Instant
 
 class RoomTimetableLocalDataSource(
     private val timetableDao: TimetableDao,
@@ -30,7 +31,7 @@ class RoomTimetableLocalDataSource(
         ) { details, tags, metadata ->
             details.toSnapshot(
                 tags = tags,
-                lastSuccessfulSyncAtMillis = metadata?.lastSuccessfulSyncAtMillis,
+                lastSuccessfulSyncAt = metadata?.lastSuccessfulSyncAtMillis?.let(Instant::fromEpochMilliseconds),
             )
         }
     }
@@ -40,7 +41,7 @@ class RoomTimetableLocalDataSource(
         year: Int?,
         courses: List<RegisteredCourse>,
         tags: List<Tag>,
-        syncedAtMillis: Long,
+        syncedAt: Instant,
     ) {
         timetableDao.replaceSnapshot(
             accountId = accountId,
@@ -71,7 +72,7 @@ class RoomTimetableLocalDataSource(
                     )
                 }
             },
-            syncedAtMillis = syncedAtMillis,
+            syncedAtMillis = syncedAt.toEpochMilliseconds(),
         )
     }
 }
@@ -84,7 +85,7 @@ private data class CourseDetails(
 ) {
     fun toSnapshot(
         tags: List<TagEntity>,
-        lastSuccessfulSyncAtMillis: Long?,
+        lastSuccessfulSyncAt: Instant?,
     ): TimetableSnapshot {
         val methodsByCourse = methods.groupBy { it.courseId }
         val schedulesByCourse = schedules.groupBy { it.courseId }
@@ -98,7 +99,7 @@ private data class CourseDetails(
                 )
             },
             tags = tags.map { it.toDomain() },
-            lastSuccessfulSyncAtMillis = lastSuccessfulSyncAtMillis,
+            lastSuccessfulSyncAt = lastSuccessfulSyncAt,
         )
     }
 }

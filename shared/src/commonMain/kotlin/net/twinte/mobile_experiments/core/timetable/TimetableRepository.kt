@@ -14,7 +14,7 @@ class TimetableRepository(
     private val accountLocalDataSource: AccountLocalDataSource,
     private val timetableApi: TimetableApi,
     private val localDataSource: TimetableLocalDataSource,
-    private val nowMillis: () -> Long = { Clock.System.now().toEpochMilliseconds() },
+    private val now: () -> kotlin.time.Instant = Clock.System::now,
 ) : TimetableService {
     override fun observeTimetable(accountId: String, year: Int?): Flow<TimetableSnapshot> =
         localDataSource.observeSnapshot(accountId, year)
@@ -31,7 +31,7 @@ class TimetableRepository(
                 year = year,
                 courses = courses,
                 tags = tags,
-                syncedAtMillis = nowMillis(),
+                syncedAt = now(),
             )
         }
     }

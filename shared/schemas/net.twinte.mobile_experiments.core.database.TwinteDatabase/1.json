@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "ebc490602ce8db77a81596f847c7648d",
+    "identityHash": "7243acec2c598d94d21b9bd3f4cf9197",
     "entities": [
       {
         "tableName": "account",
@@ -641,7 +641,113 @@
       },
       {
         "tableName": "daily_course",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`accountId` TEXT NOT NULL, `date` TEXT NOT NULL, `courseId` TEXT NOT NULL, `position` INTEGER NOT NULL, PRIMARY KEY(`accountId`, `date`, `courseId`), FOREIGN KEY(`accountId`, `date`) REFERENCES `daily_timetable`(`accountId`, `date`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`accountId`, `courseId`) REFERENCES `registered_course`(`accountId`, `id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`accountId` TEXT NOT NULL, `date` TEXT NOT NULL, `id` TEXT NOT NULL, `position` INTEGER NOT NULL, `year` INTEGER NOT NULL, `name` TEXT NOT NULL, `instructors` TEXT NOT NULL, `credit` TEXT NOT NULL, `memo` TEXT NOT NULL, `attendance` INTEGER NOT NULL, `absence` INTEGER NOT NULL, `late` INTEGER NOT NULL, `code` TEXT, PRIMARY KEY(`accountId`, `date`, `id`), FOREIGN KEY(`accountId`, `date`) REFERENCES `daily_timetable`(`accountId`, `date`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "accountId",
+            "columnName": "accountId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "year",
+            "columnName": "year",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "instructors",
+            "columnName": "instructors",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "credit",
+            "columnName": "credit",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "memo",
+            "columnName": "memo",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attendance",
+            "columnName": "attendance",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "absence",
+            "columnName": "absence",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "late",
+            "columnName": "late",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "code",
+            "columnName": "code",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "accountId",
+            "date",
+            "id"
+          ]
+        },
+        "foreignKeys": [
+          {
+            "table": "daily_timetable",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "accountId",
+              "date"
+            ],
+            "referencedColumns": [
+              "accountId",
+              "date"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "daily_course_method",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`accountId` TEXT NOT NULL, `date` TEXT NOT NULL, `courseId` TEXT NOT NULL, `position` INTEGER NOT NULL, `method` TEXT NOT NULL, PRIMARY KEY(`accountId`, `date`, `courseId`, `position`), FOREIGN KEY(`accountId`, `date`, `courseId`) REFERENCES `daily_course`(`accountId`, `date`, `id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
         "fields": [
           {
             "fieldPath": "accountId",
@@ -666,6 +772,12 @@
             "columnName": "position",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "method",
+            "columnName": "method",
+            "affinity": "TEXT",
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -673,45 +785,129 @@
           "columnNames": [
             "accountId",
             "date",
-            "courseId"
+            "courseId",
+            "position"
           ]
         },
         "indices": [
           {
-            "name": "index_daily_course_accountId_courseId",
+            "name": "index_daily_course_method_accountId_date_courseId",
             "unique": false,
             "columnNames": [
               "accountId",
+              "date",
               "courseId"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_daily_course_accountId_courseId` ON `${TABLE_NAME}` (`accountId`, `courseId`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_daily_course_method_accountId_date_courseId` ON `${TABLE_NAME}` (`accountId`, `date`, `courseId`)"
           }
         ],
         "foreignKeys": [
           {
-            "table": "daily_timetable",
+            "table": "daily_course",
             "onDelete": "CASCADE",
             "onUpdate": "NO ACTION",
             "columns": [
               "accountId",
-              "date"
-            ],
-            "referencedColumns": [
-              "accountId",
-              "date"
-            ]
-          },
-          {
-            "table": "registered_course",
-            "onDelete": "CASCADE",
-            "onUpdate": "NO ACTION",
-            "columns": [
-              "accountId",
+              "date",
               "courseId"
             ],
             "referencedColumns": [
               "accountId",
+              "date",
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "daily_course_schedule",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`accountId` TEXT NOT NULL, `date` TEXT NOT NULL, `courseId` TEXT NOT NULL, `position` INTEGER NOT NULL, `module` TEXT NOT NULL, `day` TEXT NOT NULL, `period` INTEGER NOT NULL, `locations` TEXT NOT NULL, PRIMARY KEY(`accountId`, `date`, `courseId`, `position`), FOREIGN KEY(`accountId`, `date`, `courseId`) REFERENCES `daily_course`(`accountId`, `date`, `id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "accountId",
+            "columnName": "accountId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "date",
+            "columnName": "date",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "courseId",
+            "columnName": "courseId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "module",
+            "columnName": "module",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "day",
+            "columnName": "day",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "period",
+            "columnName": "period",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "locations",
+            "columnName": "locations",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "accountId",
+            "date",
+            "courseId",
+            "position"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_daily_course_schedule_accountId_date_courseId",
+            "unique": false,
+            "columnNames": [
+              "accountId",
+              "date",
+              "courseId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_daily_course_schedule_accountId_date_courseId` ON `${TABLE_NAME}` (`accountId`, `date`, `courseId`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "daily_course",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "accountId",
+              "date",
+              "courseId"
+            ],
+            "referencedColumns": [
+              "accountId",
+              "date",
               "id"
             ]
           }
@@ -720,7 +916,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ebc490602ce8db77a81596f847c7648d')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7243acec2c598d94d21b9bd3f4cf9197')"
     ]
   }
 }

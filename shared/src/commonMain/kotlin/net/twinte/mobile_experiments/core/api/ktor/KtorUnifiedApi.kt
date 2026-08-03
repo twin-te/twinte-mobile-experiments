@@ -1,18 +1,7 @@
 package net.twinte.mobile_experiments.core.api.ktor
 
 import io.ktor.client.HttpClient
-import io.ktor.client.call.body
-import io.ktor.client.request.accept
-import io.ktor.client.request.header
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
 import io.ktor.http.Url
-import io.ktor.http.URLBuilder
-import io.ktor.http.appendPathSegments
-import io.ktor.http.contentType
-import io.ktor.http.isSuccess
 import kotlinx.datetime.LocalDate
 import net.twinte.api.schoolcalendar.v1.Event as ApiEvent
 import net.twinte.api.schoolcalendar.v1.EventType as ApiEventType
@@ -23,12 +12,12 @@ import net.twinte.api.unified.v1.GetByDateRequest
 import net.twinte.api.unified.v1.GetByDateResponse
 import net.twinte.mobile_experiments.core.api.DailyApiSnapshot
 import net.twinte.mobile_experiments.core.api.DailyTimetableApi
-import net.twinte.mobile_experiments.core.api.TwinteApiException
 import net.twinte.mobile_experiments.core.auth.TwinteSession
 import net.twinte.mobile_experiments.core.domain.Day
 import net.twinte.mobile_experiments.core.domain.EventType
 import net.twinte.mobile_experiments.core.domain.Module
 import net.twinte.mobile_experiments.core.domain.SchoolCalendarEvent
+import net.twinte.mobile_experiments.core.domain.toDailyCourse
 import pbandk.ExperimentalProtoJson
 import pbandk.json.decodeFromJsonString
 import pbandk.json.encodeToJsonString
@@ -38,6 +27,8 @@ class KtorUnifiedApi(
     private val apiBaseUrl: Url = Url("https://app.twinte.net/api/v4"),
     private val httpClient: HttpClient,
 ) : DailyTimetableApi {
+    private val connectTransport = ConnectJsonTransport(apiBaseUrl, httpClient)
+
     constructor(
         apiBaseUrl: String,
         httpClient: HttpClient,
@@ -47,30 +38,16 @@ class KtorUnifiedApi(
     )
 
     override suspend fun getByDate(session: TwinteSession, date: LocalDate): DailyApiSnapshot {
-        val response = mapKtorNetworkErrors {
-            httpClient.post(connectUrl()) {
-                accept(ContentType.Application.Json)
-                contentType(ContentType.Application.Json)
-                header("Connect-Protocol-Version", "1")
-                header(HttpHeaders.Cookie, "${session.cookieName}=${session.sessionId}")
-                setBody(
-                    GetByDateRequest(
-                        date = RFC3339FullDate(date.toString()),
-                    ).encodeToJsonString(),
-                )
-            }
-        }
-        val body = response.body<String>()
-        if (!response.status.isSuccess()) {
-            throw TwinteApiException(response.status.value, body)
-        }
+        val body = connectTransport.post(
+            service = "unified.v1.UnifiedService",
+            method = "GetByDate",
+            session = session,
+            requestBody = GetByDateRequest(
+                date = RFC3339FullDate(date.toString()),
+            ).encodeToJsonString(),
+        )
         return GetByDateResponse.decodeFromJsonString(body).toDomainSnapshot(date)
     }
-
-    private fun connectUrl(): Url =
-        URLBuilder(apiBaseUrl).apply {
-            appendPathSegments("unified.v1.UnifiedService", "GetByDate")
-        }.build()
 }
 
 internal fun GetByDateResponse.toDomainSnapshot(date: LocalDate): DailyApiSnapshot =
@@ -78,14 +55,14 @@ internal fun GetByDateResponse.toDomainSnapshot(date: LocalDate): DailyApiSnapsh
         date = date,
         module = module.toDomainModule(),
         events = events.map(ApiEvent::toDomainEvent),
-        registeredCourses = registeredCourses.map { it.toDomainRegisteredCourse() },
+        courses = registeredCourses.map { it.toDomainRegisteredCourse().toDailyCourse() },
     )
 
 private fun ApiEvent.toDomainEvent(): SchoolCalendarEvent =
     SchoolCalendarEvent(
         id = id,
         type = type.toDomainEventType(),
-        date = requireNotNull(date) { "Event.date is missing" }.value,
+        date = LocalDate.parse(requireNotNull(date) { "Event.date is missing" }.value),
         description = description,
         changeTo = changeTo?.toDomainDay(),
     )

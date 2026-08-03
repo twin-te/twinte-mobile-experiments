@@ -3,10 +3,11 @@ package net.twinte.mobile_experiments.core.timetable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.datetime.LocalDate
 import net.twinte.mobile_experiments.core.api.DailyApiSnapshot
+import kotlin.time.Instant
 
 data class CachedDailyTimetable(
     val snapshot: DailyApiSnapshot,
-    val lastSuccessfulSyncAtMillis: Long,
+    val lastSuccessfulSyncAt: Instant,
 )
 
 interface DailyTimetableLocalDataSource {
@@ -15,6 +16,6 @@ interface DailyTimetableLocalDataSource {
     suspend fun replace(
         accountId: String,
         snapshot: DailyApiSnapshot,
-        syncedAtMillis: Long,
+        syncedAt: Instant,
     )
 }

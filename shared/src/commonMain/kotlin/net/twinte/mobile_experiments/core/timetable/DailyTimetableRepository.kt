@@ -16,7 +16,7 @@ class DailyTimetableRepository(
     private val api: DailyTimetableApi,
     private val localDataSource: DailyTimetableLocalDataSource,
     private val builder: DailyTimetableBuilder = DailyTimetableBuilder(),
-    private val nowMillis: () -> Long = { Clock.System.now().toEpochMilliseconds() },
+    private val now: () -> kotlin.time.Instant = Clock.System::now,
 ) : DailyTimetableService {
     override fun observe(accountId: String, date: LocalDate): Flow<DailyTimetableSnapshot?> =
         localDataSource.observe(accountId, date).map { cached ->
@@ -27,10 +27,10 @@ class DailyTimetableRepository(
                             date = it.snapshot.date,
                             module = it.snapshot.module,
                             events = it.snapshot.events,
-                            registeredCourses = it.snapshot.registeredCourses,
+                            courses = it.snapshot.courses,
                         ),
                     ),
-                    lastSuccessfulSyncAtMillis = it.lastSuccessfulSyncAtMillis,
+                    lastSuccessfulSyncAt = it.lastSuccessfulSyncAt,
                 )
             }
         }
@@ -44,7 +44,7 @@ class DailyTimetableRepository(
             localDataSource.replace(
                 accountId = accountId,
                 snapshot = api.getByDate(session, date),
-                syncedAtMillis = nowMillis(),
+                syncedAt = now(),
             )
         } catch (error: Throwable) {
             if (error is TwinteApiException && error.isUnauthorized) {

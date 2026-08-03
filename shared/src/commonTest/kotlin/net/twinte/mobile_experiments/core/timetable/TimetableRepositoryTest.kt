@@ -16,6 +16,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
+import kotlin.time.Instant
 
 class TimetableRepositoryTest {
     @Test
@@ -34,7 +35,7 @@ class TimetableRepositoryTest {
         repository.refresh(accountId = "user-id", year = 2026)
 
         assertEquals(
-            TimetableSnapshot(courses, tags, lastSuccessfulSyncAtMillis = 1234L),
+            TimetableSnapshot(courses, tags, lastSuccessfulSyncAt = Instant.fromEpochMilliseconds(1234)),
             repository.observeTimetable("user-id", 2026).first(),
         )
         assertEquals(1, localDataSource.replaceCount)
@@ -44,7 +45,7 @@ class TimetableRepositoryTest {
     fun refreshDoesNotReplaceCacheWhenOneRequestFails() = runTest {
         val cached = TimetableSnapshot(
             courses = listOf(course("cached-course")),
-            lastSuccessfulSyncAtMillis = 1000L,
+            lastSuccessfulSyncAt = Instant.fromEpochMilliseconds(1000),
         )
         val localDataSource = FakeTimetableLocalDataSource(cached)
         val repository = repository(
@@ -96,7 +97,7 @@ class TimetableRepositoryTest {
             accountLocalDataSource = MemoryAccountLocalDataSource(User("user-id", emptyList())),
             timetableApi = timetableApi,
             localDataSource = localDataSource,
-            nowMillis = { 1234L },
+            now = { Instant.fromEpochMilliseconds(1234) },
         )
 
     private class FakeTimetableApi(
@@ -125,10 +126,10 @@ class TimetableRepositoryTest {
             year: Int?,
             courses: List<RegisteredCourse>,
             tags: List<Tag>,
-            syncedAtMillis: Long,
+            syncedAt: Instant,
         ) {
             replaceCount += 1
-            snapshots.value = TimetableSnapshot(courses, tags, syncedAtMillis)
+            snapshots.value = TimetableSnapshot(courses, tags, syncedAt)
         }
     }
 }

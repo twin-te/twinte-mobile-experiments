@@ -19,6 +19,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
+import kotlin.time.Instant
 
 class DailyTimetableRepositoryTest {
     private val date = LocalDate(2026, 5, 1)
@@ -32,12 +33,12 @@ class DailyTimetableRepositoryTest {
                 SchoolCalendarEvent(
                     id = 1,
                     type = EventType.SubstituteDay,
-                    date = date.toString(),
+                    date = date,
                     description = "",
                     changeTo = Day.Monday,
                 ),
             ),
-            registeredCourses = emptyList(),
+            courses = emptyList(),
         )
         val localDataSource = FakeDailyTimetableLocalDataSource()
         val repository = repository(
@@ -48,9 +49,9 @@ class DailyTimetableRepositoryTest {
         repository.refresh("user-id", date)
 
         val cached = repository.observe("user-id", date).first()
-        assertEquals(date.toString(), cached?.timetable?.date)
+        assertEquals(date, cached?.timetable?.date)
         assertEquals(Day.Monday, cached?.timetable?.effectiveDay)
-        assertEquals(1234L, cached?.lastSuccessfulSyncAtMillis)
+        assertEquals(Instant.fromEpochMilliseconds(1234), cached?.lastSuccessfulSyncAt)
     }
 
     @Test
@@ -60,9 +61,9 @@ class DailyTimetableRepositoryTest {
                 date = date,
                 module = Module.SpringA,
                 events = emptyList(),
-                registeredCourses = emptyList(),
+                courses = emptyList(),
             ),
-            lastSuccessfulSyncAtMillis = 100L,
+            lastSuccessfulSyncAt = Instant.fromEpochMilliseconds(100),
         )
         val localDataSource = FakeDailyTimetableLocalDataSource(cached)
         val repository = repository(
@@ -74,7 +75,10 @@ class DailyTimetableRepositoryTest {
             repository.refresh("user-id", date)
         }
 
-        assertEquals(100L, repository.observe("user-id", date).first()?.lastSuccessfulSyncAtMillis)
+        assertEquals(
+            Instant.fromEpochMilliseconds(100),
+            repository.observe("user-id", date).first()?.lastSuccessfulSyncAt,
+        )
     }
 
     @Test
@@ -96,7 +100,7 @@ class DailyTimetableRepositoryTest {
             accountLocalDataSource = MemoryAccountLocalDataSource(User("user-id", emptyList())),
             api = api,
             localDataSource = localDataSource,
-            nowMillis = { 1234L },
+            now = { Instant.fromEpochMilliseconds(1234) },
         )
 }
 
@@ -118,8 +122,8 @@ private class FakeDailyTimetableLocalDataSource(
     override suspend fun replace(
         accountId: String,
         snapshot: DailyApiSnapshot,
-        syncedAtMillis: Long,
+        syncedAt: Instant,
     ) {
-        this.snapshot.value = CachedDailyTimetable(snapshot, syncedAtMillis)
+        this.snapshot.value = CachedDailyTimetable(snapshot, syncedAt)
     }
 }

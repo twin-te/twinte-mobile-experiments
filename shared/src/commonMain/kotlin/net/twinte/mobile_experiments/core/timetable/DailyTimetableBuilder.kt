@@ -5,18 +5,18 @@ import kotlinx.datetime.LocalDate
 import net.twinte.mobile_experiments.core.domain.Day
 import net.twinte.mobile_experiments.core.domain.EventType
 import net.twinte.mobile_experiments.core.domain.Module
-import net.twinte.mobile_experiments.core.domain.RegisteredCourse
+import net.twinte.mobile_experiments.core.domain.DailyCourse
 import net.twinte.mobile_experiments.core.domain.SchoolCalendarEvent
 
 data class DailyTimetableInput(
     val date: LocalDate,
     val module: Module,
     val events: List<SchoolCalendarEvent>,
-    val registeredCourses: List<RegisteredCourse>,
+    val courses: List<DailyCourse>,
 )
 
 data class DailyTimetable(
-    val date: String,
+    val date: LocalDate,
     val module: Module,
     val effectiveDay: Day,
     val eventLabel: String,
@@ -59,7 +59,7 @@ class DailyTimetableBuilder {
             }
         } ?: "通常日課"
 
-        val coursesByPeriod = input.registeredCourses
+        val coursesByPeriod = input.courses
             .flatMap { course ->
                 course.schedules
                     .filter { it.module == input.module && it.day == effectiveDay }
@@ -98,7 +98,7 @@ class DailyTimetableBuilder {
         }
 
         return DailyTimetable(
-            date = input.date.toString(),
+            date = input.date,
             module = input.module,
             effectiveDay = effectiveDay,
             eventLabel = eventLabel,

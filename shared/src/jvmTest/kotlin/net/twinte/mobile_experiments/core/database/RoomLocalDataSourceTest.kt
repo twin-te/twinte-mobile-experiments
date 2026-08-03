@@ -17,10 +17,12 @@ import net.twinte.mobile_experiments.core.domain.SchoolCalendarEvent
 import net.twinte.mobile_experiments.core.domain.Tag
 import net.twinte.mobile_experiments.core.domain.User
 import net.twinte.mobile_experiments.core.domain.UserAuthentication
+import net.twinte.mobile_experiments.core.domain.toDailyCourse
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.time.Instant
 
 class RoomLocalDataSourceTest {
     private val database = Room.inMemoryDatabaseBuilder<TwinteDatabase>(
@@ -72,7 +74,7 @@ class RoomLocalDataSourceTest {
             year = 2026,
             courses = listOf(course),
             tags = listOf(tag),
-            syncedAtMillis = 1234L,
+            syncedAt = Instant.fromEpochMilliseconds(1234),
         )
 
         assertEquals(
@@ -114,7 +116,7 @@ class RoomLocalDataSourceTest {
     }
 
     @Test
-    fun dailyTimetableSurvivesFullTimetableRefreshAndIsRemovedWithAccount() = runTest {
+    fun dailyTimetableIsIndependentFromFullRefreshAndIsRemovedWithAccount() = runTest {
         val accountDataSource = RoomAccountLocalDataSource(database.accountDao())
         val timetableDataSource = RoomTimetableLocalDataSource(database.timetableDao())
         val dailyDataSource = RoomDailyTimetableLocalDataSource(database.dailyTimetableDao())
@@ -130,6 +132,7 @@ class RoomLocalDataSourceTest {
             schedules = listOf(
                 CourseSchedule(Module.SpringA, Day.Monday, 2, "3A204"),
             ),
+            memo = "daily",
         )
 
         accountDataSource.saveActiveUser(user)
@@ -142,19 +145,23 @@ class RoomLocalDataSourceTest {
                     SchoolCalendarEvent(
                         id = 1,
                         type = EventType.SubstituteDay,
-                        date = date.toString(),
+                        date = date,
                         description = "",
                         changeTo = Day.Monday,
                     ),
                 ),
-                registeredCourses = listOf(course),
+                courses = listOf(course.toDailyCourse()),
             ),
-            syncedAtMillis = 1234L,
+            syncedAt = Instant.fromEpochMilliseconds(1234),
         )
 
         assertEquals(
-            listOf(course),
-            dailyDataSource.observe(user.id, date).first()?.snapshot?.registeredCourses,
+            listOf(course.toDailyCourse()),
+            dailyDataSource.observe(user.id, date).first()?.snapshot?.courses,
+        )
+        assertEquals(
+            emptyList(),
+            timetableDataSource.observeSnapshot(user.id, year = null).first().courses,
         )
 
         timetableDataSource.replaceSnapshot(
@@ -162,14 +169,14 @@ class RoomLocalDataSourceTest {
             year = null,
             courses = listOf(course.copy(memo = "updated")),
             tags = emptyList(),
-            syncedAtMillis = 5678L,
+            syncedAt = Instant.fromEpochMilliseconds(5678),
         )
 
         assertEquals(
-            "updated",
+            "daily",
             dailyDataSource.observe(user.id, date).first()
                 ?.snapshot
-                ?.registeredCourses
+                ?.courses
                 ?.single()
                 ?.memo,
         )

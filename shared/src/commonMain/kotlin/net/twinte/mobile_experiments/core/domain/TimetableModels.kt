@@ -1,5 +1,7 @@
 package net.twinte.mobile_experiments.core.domain
 
+import kotlinx.datetime.LocalDate
+
 enum class Module(val label: String) {
     Unknown(""),
     SpringA("春A"),
@@ -65,10 +67,41 @@ data class RegisteredCourse(
     val code: String? = null,
 )
 
+data class DailyCourse(
+    val id: String,
+    val year: Int,
+    val name: String,
+    val instructors: String,
+    val credit: String,
+    val methods: List<CourseMethod>,
+    val schedules: List<CourseSchedule>,
+    val memo: String = "",
+    val attendance: Int = 0,
+    val absence: Int = 0,
+    val late: Int = 0,
+    val code: String? = null,
+)
+
+fun RegisteredCourse.toDailyCourse(): DailyCourse =
+    DailyCourse(
+        id = id,
+        year = year,
+        name = name,
+        instructors = instructors,
+        credit = credit,
+        methods = methods,
+        schedules = schedules,
+        memo = memo,
+        attendance = attendance,
+        absence = absence,
+        late = late,
+        code = code,
+    )
+
 data class SchoolCalendarEvent(
     val id: Int,
     val type: EventType,
-    val date: String,
+    val date: LocalDate,
     val description: String,
     val changeTo: Day? = null,
 )

@@ -219,7 +219,7 @@ data class DailyEventEntity(
 
 @Entity(
     tableName = "daily_course",
-    primaryKeys = ["accountId", "date", "courseId"],
+    primaryKeys = ["accountId", "date", "id"],
     foreignKeys = [
         ForeignKey(
             entity = DailyTimetableEntity::class,
@@ -227,18 +227,65 @@ data class DailyEventEntity(
             childColumns = ["accountId", "date"],
             onDelete = ForeignKey.CASCADE,
         ),
-        ForeignKey(
-            entity = RegisteredCourseEntity::class,
-            parentColumns = ["accountId", "id"],
-            childColumns = ["accountId", "courseId"],
-            onDelete = ForeignKey.CASCADE,
-        ),
     ],
-    indices = [Index("accountId", "courseId")],
 )
 data class DailyCourseEntity(
     val accountId: String,
     val date: String,
+    val id: String,
+    val position: Int,
+    val year: Int,
+    val name: String,
+    val instructors: String,
+    val credit: String,
+    val memo: String,
+    val attendance: Int,
+    val absence: Int,
+    val late: Int,
+    val code: String?,
+)
+
+@Entity(
+    tableName = "daily_course_method",
+    primaryKeys = ["accountId", "date", "courseId", "position"],
+    foreignKeys = [
+        ForeignKey(
+            entity = DailyCourseEntity::class,
+            parentColumns = ["accountId", "date", "id"],
+            childColumns = ["accountId", "date", "courseId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("accountId", "date", "courseId")],
+)
+data class DailyCourseMethodEntity(
+    val accountId: String,
+    val date: String,
     val courseId: String,
     val position: Int,
+    val method: String,
+)
+
+@Entity(
+    tableName = "daily_course_schedule",
+    primaryKeys = ["accountId", "date", "courseId", "position"],
+    foreignKeys = [
+        ForeignKey(
+            entity = DailyCourseEntity::class,
+            parentColumns = ["accountId", "date", "id"],
+            childColumns = ["accountId", "date", "courseId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("accountId", "date", "courseId")],
+)
+data class DailyCourseScheduleEntity(
+    val accountId: String,
+    val date: String,
+    val courseId: String,
+    val position: Int,
+    val module: String,
+    val day: String,
+    val period: Int,
+    val locations: String,
 )

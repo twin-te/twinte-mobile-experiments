@@ -3,11 +3,12 @@ package net.twinte.mobile_experiments.core.timetable
 import kotlinx.coroutines.flow.Flow
 import net.twinte.mobile_experiments.core.domain.RegisteredCourse
 import net.twinte.mobile_experiments.core.domain.Tag
+import kotlin.time.Instant
 
 data class TimetableSnapshot(
     val courses: List<RegisteredCourse> = emptyList(),
     val tags: List<Tag> = emptyList(),
-    val lastSuccessfulSyncAtMillis: Long? = null,
+    val lastSuccessfulSyncAt: Instant? = null,
 )
 
 interface TimetableService {

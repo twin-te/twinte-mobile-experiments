@@ -21,6 +21,8 @@ import androidx.compose.runtime.Composable
         DailyTimetableEntity::class,
         DailyEventEntity::class,
         DailyCourseEntity::class,
+        DailyCourseMethodEntity::class,
+        DailyCourseScheduleEntity::class,
     ],
     version = 1,
     exportSchema = true,
