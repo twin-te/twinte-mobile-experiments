@@ -49,6 +49,7 @@ kotlin {
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.ktor.client.core)
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.datetime)
             implementation(libs.pbandk.runtime)
             implementation(libs.androidx.room3.runtime)
             implementation(libs.androidx.sqlite.bundled)

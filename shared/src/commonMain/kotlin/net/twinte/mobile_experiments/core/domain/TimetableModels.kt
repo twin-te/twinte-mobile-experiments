@@ -8,6 +8,7 @@ enum class Module(val label: String) {
     SummerVacation("夏休み"),
     FallA("秋A"),
     FallB("秋B"),
+    WinterVacation("冬休み"),
     FallC("秋C"),
     SpringVacation("春休み"),
 }

@@ -101,7 +101,7 @@ class KtorTimetableApi(
         }.build()
 }
 
-private fun ApiRegisteredCourse.toDomainRegisteredCourse(): RegisteredCourse =
+internal fun ApiRegisteredCourse.toDomainRegisteredCourse(): RegisteredCourse =
     RegisteredCourse(
         id = requireNotNull(id) { "RegisteredCourse.id is missing" }.value,
         year = requireNotNull(year) { "RegisteredCourse.year is missing" }.value,
