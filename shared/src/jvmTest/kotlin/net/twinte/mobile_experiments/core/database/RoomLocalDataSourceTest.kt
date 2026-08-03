@@ -4,18 +4,23 @@ import androidx.room3.Room
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
+import kotlinx.datetime.LocalDate
+import net.twinte.mobile_experiments.core.api.DailyApiSnapshot
 import net.twinte.mobile_experiments.core.domain.AuthProvider
 import net.twinte.mobile_experiments.core.domain.CourseMethod
 import net.twinte.mobile_experiments.core.domain.CourseSchedule
 import net.twinte.mobile_experiments.core.domain.Day
+import net.twinte.mobile_experiments.core.domain.EventType
 import net.twinte.mobile_experiments.core.domain.Module
 import net.twinte.mobile_experiments.core.domain.RegisteredCourse
+import net.twinte.mobile_experiments.core.domain.SchoolCalendarEvent
 import net.twinte.mobile_experiments.core.domain.Tag
 import net.twinte.mobile_experiments.core.domain.User
 import net.twinte.mobile_experiments.core.domain.UserAuthentication
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class RoomLocalDataSourceTest {
     private val database = Room.inMemoryDatabaseBuilder<TwinteDatabase>(
@@ -106,5 +111,71 @@ class RoomLocalDataSourceTest {
             emptyList(),
             timetableDataSource.observeSnapshot(user.id, 2026).first().courses,
         )
+    }
+
+    @Test
+    fun dailyTimetableSurvivesFullTimetableRefreshAndIsRemovedWithAccount() = runTest {
+        val accountDataSource = RoomAccountLocalDataSource(database.accountDao())
+        val timetableDataSource = RoomTimetableLocalDataSource(database.timetableDao())
+        val dailyDataSource = RoomDailyTimetableLocalDataSource(database.dailyTimetableDao())
+        val user = User("user-id", emptyList())
+        val date = LocalDate(2026, 5, 1)
+        val course = RegisteredCourse(
+            id = "course-id",
+            year = 2026,
+            name = "Distributed Systems",
+            instructors = "Teacher",
+            credit = "2.0",
+            methods = listOf(CourseMethod.FaceToFace),
+            schedules = listOf(
+                CourseSchedule(Module.SpringA, Day.Monday, 2, "3A204"),
+            ),
+        )
+
+        accountDataSource.saveActiveUser(user)
+        dailyDataSource.replace(
+            accountId = user.id,
+            snapshot = DailyApiSnapshot(
+                date = date,
+                module = Module.SpringA,
+                events = listOf(
+                    SchoolCalendarEvent(
+                        id = 1,
+                        type = EventType.SubstituteDay,
+                        date = date.toString(),
+                        description = "",
+                        changeTo = Day.Monday,
+                    ),
+                ),
+                registeredCourses = listOf(course),
+            ),
+            syncedAtMillis = 1234L,
+        )
+
+        assertEquals(
+            listOf(course),
+            dailyDataSource.observe(user.id, date).first()?.snapshot?.registeredCourses,
+        )
+
+        timetableDataSource.replaceSnapshot(
+            accountId = user.id,
+            year = null,
+            courses = listOf(course.copy(memo = "updated")),
+            tags = emptyList(),
+            syncedAtMillis = 5678L,
+        )
+
+        assertEquals(
+            "updated",
+            dailyDataSource.observe(user.id, date).first()
+                ?.snapshot
+                ?.registeredCourses
+                ?.single()
+                ?.memo,
+        )
+
+        accountDataSource.clearActiveAccountAndData()
+
+        assertNull(dailyDataSource.observe(user.id, date).first())
     }
 }

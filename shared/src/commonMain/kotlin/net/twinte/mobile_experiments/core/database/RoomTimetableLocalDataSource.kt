@@ -103,7 +103,7 @@ private data class CourseDetails(
     }
 }
 
-private fun RegisteredCourse.toEntity(accountId: String): RegisteredCourseEntity =
+internal fun RegisteredCourse.toEntity(accountId: String): RegisteredCourseEntity =
     RegisteredCourseEntity(
         accountId = accountId,
         id = id,
@@ -118,7 +118,7 @@ private fun RegisteredCourse.toEntity(accountId: String): RegisteredCourseEntity
         code = code,
     )
 
-private fun CourseSchedule.toEntity(
+internal fun CourseSchedule.toEntity(
     accountId: String,
     courseId: String,
     position: Int,
@@ -141,7 +141,7 @@ private fun Tag.toEntity(accountId: String): TagEntity =
         sortOrder = order,
     )
 
-private fun RegisteredCourseEntity.toDomain(
+internal fun RegisteredCourseEntity.toDomain(
     methods: List<CourseMethodEntity>,
     schedules: List<CourseScheduleEntity>,
     tagIds: List<String>,

@@ -1,5 +1,7 @@
 package net.twinte.mobile_experiments.core.timetable
 
+import kotlinx.datetime.DayOfWeek
+import kotlinx.datetime.LocalDate
 import net.twinte.mobile_experiments.core.domain.Day
 import net.twinte.mobile_experiments.core.domain.EventType
 import net.twinte.mobile_experiments.core.domain.Module
@@ -7,8 +9,7 @@ import net.twinte.mobile_experiments.core.domain.RegisteredCourse
 import net.twinte.mobile_experiments.core.domain.SchoolCalendarEvent
 
 data class DailyTimetableInput(
-    val date: String,
-    val day: Day,
+    val date: LocalDate,
     val module: Module,
     val events: List<SchoolCalendarEvent>,
     val registeredCourses: List<RegisteredCourse>,
@@ -49,7 +50,7 @@ sealed interface DailyCourseSlot {
 class DailyTimetableBuilder {
     fun build(input: DailyTimetableInput): DailyTimetable {
         val substituteDay = input.events.firstNotNullOfOrNull { it.changeTo }
-        val effectiveDay = substituteDay ?: input.day
+        val effectiveDay = substituteDay ?: input.date.toDomainDay()
         val eventLabel = input.events.firstOrNull()?.let { event ->
             when {
                 event.changeTo != null -> "${event.changeTo.label}日課"
@@ -97,7 +98,7 @@ class DailyTimetableBuilder {
         }
 
         return DailyTimetable(
-            date = input.date,
+            date = input.date.toString(),
             module = input.module,
             effectiveDay = effectiveDay,
             eventLabel = eventLabel,
@@ -105,3 +106,14 @@ class DailyTimetableBuilder {
         )
     }
 }
+
+internal fun LocalDate.toDomainDay(): Day =
+    when (dayOfWeek) {
+        DayOfWeek.MONDAY -> Day.Monday
+        DayOfWeek.TUESDAY -> Day.Tuesday
+        DayOfWeek.WEDNESDAY -> Day.Wednesday
+        DayOfWeek.THURSDAY -> Day.Thursday
+        DayOfWeek.FRIDAY -> Day.Friday
+        DayOfWeek.SATURDAY -> Day.Saturday
+        DayOfWeek.SUNDAY -> Day.Sunday
+    }

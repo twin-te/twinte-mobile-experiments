@@ -38,6 +38,30 @@ abstract class TimetableDao {
     @Query("DELETE FROM registered_course WHERE accountId = :accountId AND year = :year")
     protected abstract suspend fun deleteCoursesByYear(accountId: String, year: Int)
 
+    @Query("DELETE FROM registered_course WHERE accountId = :accountId AND id NOT IN (:retainedCourseIds)")
+    protected abstract suspend fun deleteCoursesNotIn(accountId: String, retainedCourseIds: List<String>)
+
+    @Query(
+        """
+        DELETE FROM registered_course
+        WHERE accountId = :accountId AND year = :year AND id NOT IN (:retainedCourseIds)
+        """,
+    )
+    protected abstract suspend fun deleteCoursesByYearNotIn(
+        accountId: String,
+        year: Int,
+        retainedCourseIds: List<String>,
+    )
+
+    @Query("DELETE FROM course_method WHERE accountId = :accountId AND courseId IN (:courseIds)")
+    protected abstract suspend fun deleteMethods(accountId: String, courseIds: List<String>)
+
+    @Query("DELETE FROM course_schedule WHERE accountId = :accountId AND courseId IN (:courseIds)")
+    protected abstract suspend fun deleteSchedules(accountId: String, courseIds: List<String>)
+
+    @Query("DELETE FROM registered_course_tag WHERE accountId = :accountId AND courseId IN (:courseIds)")
+    protected abstract suspend fun deleteCourseTags(accountId: String, courseIds: List<String>)
+
     @Query("DELETE FROM tag WHERE accountId = :accountId")
     protected abstract suspend fun deleteTags(accountId: String)
 
@@ -73,16 +97,29 @@ abstract class TimetableDao {
         courseTags: List<RegisteredCourseTagEntity>,
         syncedAtMillis: Long,
     ) {
-        if (year == null) {
+        val courseIds = courses.map { it.id }
+        if (year == null && courseIds.isEmpty()) {
             deleteAllCourses(accountId)
-            deleteTags(accountId)
-        } else {
+        } else if (year == null) {
+            deleteCoursesNotIn(accountId, courseIds)
+        } else if (courseIds.isEmpty()) {
             deleteCoursesByYear(accountId, year)
+        } else {
+            deleteCoursesByYearNotIn(accountId, year, courseIds)
+        }
+
+        if (courseIds.isNotEmpty()) {
+            deleteMethods(accountId, courseIds)
+            deleteSchedules(accountId, courseIds)
+            deleteCourseTags(accountId, courseIds)
         }
 
         if (courses.isNotEmpty()) insertCourses(courses)
         if (methods.isNotEmpty()) insertMethods(methods)
         if (schedules.isNotEmpty()) insertSchedules(schedules)
+        if (year == null) {
+            deleteTags(accountId)
+        }
         if (tags.isNotEmpty()) insertTags(tags)
         if (year != null) {
             if (tags.isEmpty()) {

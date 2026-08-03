@@ -175,3 +175,70 @@ data class SyncMetadataEntity(
     val resource: String,
     val lastSuccessfulSyncAtMillis: Long,
 )
+
+@Entity(
+    tableName = "daily_timetable",
+    primaryKeys = ["accountId", "date"],
+    foreignKeys = [
+        ForeignKey(
+            entity = AccountEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["accountId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
+data class DailyTimetableEntity(
+    val accountId: String,
+    val date: String,
+    val module: String,
+    val lastSuccessfulSyncAtMillis: Long,
+)
+
+@Entity(
+    tableName = "daily_event",
+    primaryKeys = ["accountId", "date", "eventId"],
+    foreignKeys = [
+        ForeignKey(
+            entity = DailyTimetableEntity::class,
+            parentColumns = ["accountId", "date"],
+            childColumns = ["accountId", "date"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+)
+data class DailyEventEntity(
+    val accountId: String,
+    val date: String,
+    val eventId: Int,
+    val type: String,
+    val eventDate: String,
+    val description: String,
+    val changeTo: String?,
+)
+
+@Entity(
+    tableName = "daily_course",
+    primaryKeys = ["accountId", "date", "courseId"],
+    foreignKeys = [
+        ForeignKey(
+            entity = DailyTimetableEntity::class,
+            parentColumns = ["accountId", "date"],
+            childColumns = ["accountId", "date"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+        ForeignKey(
+            entity = RegisteredCourseEntity::class,
+            parentColumns = ["accountId", "id"],
+            childColumns = ["accountId", "courseId"],
+            onDelete = ForeignKey.CASCADE,
+        ),
+    ],
+    indices = [Index("accountId", "courseId")],
+)
+data class DailyCourseEntity(
+    val accountId: String,
+    val date: String,
+    val courseId: String,
+    val position: Int,
+)

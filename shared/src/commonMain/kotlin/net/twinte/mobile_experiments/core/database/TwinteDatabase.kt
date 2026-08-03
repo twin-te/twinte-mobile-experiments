@@ -18,6 +18,9 @@ import androidx.compose.runtime.Composable
         TagEntity::class,
         RegisteredCourseTagEntity::class,
         SyncMetadataEntity::class,
+        DailyTimetableEntity::class,
+        DailyEventEntity::class,
+        DailyCourseEntity::class,
     ],
     version = 1,
     exportSchema = true,
@@ -27,6 +30,8 @@ abstract class TwinteDatabase : RoomDatabase() {
     abstract fun accountDao(): AccountDao
 
     abstract fun timetableDao(): TimetableDao
+
+    abstract fun dailyTimetableDao(): DailyTimetableDao
 }
 
 @Suppress("NO_ACTUAL_FOR_EXPECT")
