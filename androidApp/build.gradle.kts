@@ -7,7 +7,7 @@ plugins {
 }
 
 dependencies {
-    implementation(projects.shared)
+    implementation(project(":shared"))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
@@ -39,6 +39,12 @@ android {
         buildConfig = true
     }
     packaging {
+        jniLibs {
+            keepDebugSymbols += setOf(
+                "**/libandroidx.graphics.path.so",
+                "**/libsqliteJni.so",
+            )
+        }
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }

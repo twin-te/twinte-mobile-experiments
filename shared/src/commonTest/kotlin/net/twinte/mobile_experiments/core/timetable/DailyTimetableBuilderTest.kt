@@ -1,11 +1,12 @@
 package net.twinte.mobile_experiments.core.timetable
 
+import kotlinx.datetime.LocalDate
 import net.twinte.mobile_experiments.core.domain.CourseMethod
 import net.twinte.mobile_experiments.core.domain.CourseSchedule
 import net.twinte.mobile_experiments.core.domain.Day
 import net.twinte.mobile_experiments.core.domain.EventType
 import net.twinte.mobile_experiments.core.domain.Module
-import net.twinte.mobile_experiments.core.domain.RegisteredCourse
+import net.twinte.mobile_experiments.core.domain.DailyCourse
 import net.twinte.mobile_experiments.core.domain.SchoolCalendarEvent
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -18,19 +19,18 @@ class DailyTimetableBuilderTest {
     fun usesSubstituteDayWhenEventHasChangeTo() {
         val timetable = builder.build(
             DailyTimetableInput(
-                date = "2026-05-01",
-                day = Day.Friday,
+                date = LocalDate(2026, 5, 1),
                 module = Module.SpringA,
                 events = listOf(
                     SchoolCalendarEvent(
                         id = 1,
                         type = EventType.SubstituteDay,
-                        date = "2026-05-01",
+                        date = LocalDate(2026, 5, 1),
                         description = "",
                         changeTo = Day.Monday,
                     ),
                 ),
-                registeredCourses = listOf(
+                courses = listOf(
                     course(
                         id = "course-1",
                         name = "情報科学",
@@ -56,11 +56,10 @@ class DailyTimetableBuilderTest {
     fun marksDuplicatedCoursesInSamePeriod() {
         val timetable = builder.build(
             DailyTimetableInput(
-                date = "2026-05-01",
-                day = Day.Friday,
+                date = LocalDate(2026, 5, 1),
                 module = Module.SpringA,
                 events = emptyList(),
-                registeredCourses = listOf(
+                courses = listOf(
                     course(
                         id = "course-1",
                         name = "A",
@@ -84,8 +83,8 @@ class DailyTimetableBuilderTest {
         id: String,
         name: String,
         schedules: List<CourseSchedule>,
-    ): RegisteredCourse =
-        RegisteredCourse(
+    ): DailyCourse =
+        DailyCourse(
             id = id,
             year = 2026,
             name = name,

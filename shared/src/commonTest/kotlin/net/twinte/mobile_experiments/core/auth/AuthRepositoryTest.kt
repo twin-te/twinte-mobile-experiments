@@ -3,6 +3,7 @@ package net.twinte.mobile_experiments.core.auth
 import kotlinx.coroutines.test.runTest
 import net.twinte.mobile_experiments.core.api.AuthApi
 import net.twinte.mobile_experiments.core.api.TwinteApiException
+import net.twinte.mobile_experiments.core.api.TwinteNetworkException
 import net.twinte.mobile_experiments.core.domain.AuthProvider
 import net.twinte.mobile_experiments.core.domain.User
 import net.twinte.mobile_experiments.core.domain.UserAuthentication
@@ -14,6 +15,21 @@ import kotlin.test.assertNull
 
 class AuthRepositoryTest {
     @Test
+    fun restoreSessionClearsCachedAccountWhenSessionIsMissing() = runTest {
+        val accountStore = MemoryAccountLocalDataSource(User("cached-user-id", emptyList()))
+        val repository = AuthRepository(
+            sessionStore = MemorySessionStore(),
+            authApi = FakeAuthApi(),
+            googleSessionApi = FakeGoogleSessionApi(TwinteSession("unused")),
+            appleSessionApi = FakeAppleSessionApi(TwinteSession("unused")),
+            accountLocalDataSource = accountStore,
+        )
+
+        assertNull(repository.restoreSession())
+        assertNull(accountStore.getActiveUser())
+    }
+
+    @Test
     fun signInWithGoogleIdTokenSavesSessionAndFetchesUser() = runTest {
         val store = MemorySessionStore()
         val authApi = FakeAuthApi()
@@ -24,6 +40,7 @@ class AuthRepositoryTest {
             authApi = authApi,
             googleSessionApi = googleSessionApi,
             appleSessionApi = appleSessionApi,
+            accountLocalDataSource = MemoryAccountLocalDataSource(),
         )
 
         val session = repository.signInWithGoogleIdToken("id-token")
@@ -45,6 +62,7 @@ class AuthRepositoryTest {
             authApi = authApi,
             googleSessionApi = FakeGoogleSessionApi(TwinteSession("unused")),
             appleSessionApi = appleSessionApi,
+            accountLocalDataSource = MemoryAccountLocalDataSource(),
         )
 
         val session = repository.signInWithAppleCredential(
@@ -78,6 +96,7 @@ class AuthRepositoryTest {
             authApi = authApi,
             googleSessionApi = FakeGoogleSessionApi(TwinteSession("new-session-id")),
             appleSessionApi = FakeAppleSessionApi(TwinteSession("unused")),
+            accountLocalDataSource = MemoryAccountLocalDataSource(),
         )
 
         assertFailsWith<TwinteApiException> {
@@ -90,6 +109,7 @@ class AuthRepositoryTest {
     @Test
     fun restoreSessionReturnsNullAndClearsStoredSessionOnUnauthorized() = runTest {
         val store = MemorySessionStore("stale-session-id")
+        val accountStore = MemoryAccountLocalDataSource(User("user-id", emptyList()))
         val authApi = FakeAuthApi(
             getMeResult = Result.failure(TwinteApiException(401, "unauthorized")),
         )
@@ -98,10 +118,36 @@ class AuthRepositoryTest {
             authApi = authApi,
             googleSessionApi = FakeGoogleSessionApi(TwinteSession("unused")),
             appleSessionApi = FakeAppleSessionApi(TwinteSession("unused")),
+            accountLocalDataSource = accountStore,
         )
 
         assertNull(repository.restoreSession())
         assertNull(store.getSessionId())
+        assertNull(accountStore.getActiveUser())
+    }
+
+    @Test
+    fun restoreSessionUsesCachedUserWhenNetworkIsUnavailable() = runTest {
+        val cachedUser = User("cached-user-id", emptyList())
+        val store = MemorySessionStore("session-id")
+        val accountStore = MemoryAccountLocalDataSource(cachedUser)
+        val repository = AuthRepository(
+            sessionStore = store,
+            authApi = FakeAuthApi(
+                getMeResult = Result.failure(
+                    TwinteNetworkException(IllegalStateException("offline")),
+                ),
+            ),
+            googleSessionApi = FakeGoogleSessionApi(TwinteSession("unused")),
+            appleSessionApi = FakeAppleSessionApi(TwinteSession("unused")),
+            accountLocalDataSource = accountStore,
+        )
+
+        val restored = repository.restoreSession()
+
+        assertEquals("session-id", restored?.sessionId)
+        assertEquals(cachedUser, restored?.user)
+        assertEquals(true, restored?.isOffline)
     }
 
     @Test
@@ -115,6 +161,7 @@ class AuthRepositoryTest {
             authApi = authApi,
             googleSessionApi = FakeGoogleSessionApi(TwinteSession("unused")),
             appleSessionApi = FakeAppleSessionApi(TwinteSession("unused")),
+            accountLocalDataSource = MemoryAccountLocalDataSource(),
         )
 
         assertFailsWith<TwinteApiException> {
@@ -132,6 +179,7 @@ class AuthRepositoryTest {
             authApi = authApi,
             googleSessionApi = FakeGoogleSessionApi(TwinteSession("unused")),
             appleSessionApi = FakeAppleSessionApi(TwinteSession("unused")),
+            accountLocalDataSource = MemoryAccountLocalDataSource(),
         )
 
         val result = repository.signOut()
@@ -152,6 +200,7 @@ class AuthRepositoryTest {
             authApi = authApi,
             googleSessionApi = FakeGoogleSessionApi(TwinteSession("unused")),
             appleSessionApi = FakeAppleSessionApi(TwinteSession("unused")),
+            accountLocalDataSource = MemoryAccountLocalDataSource(),
         )
 
         val result = repository.signOut()
@@ -170,6 +219,7 @@ class AuthRepositoryTest {
             authApi = authApi,
             googleSessionApi = FakeGoogleSessionApi(TwinteSession("unused")),
             appleSessionApi = FakeAppleSessionApi(TwinteSession("unused")),
+            accountLocalDataSource = MemoryAccountLocalDataSource(),
         )
 
         val session = repository.deleteUserAuthentication(AuthProvider.Apple)
@@ -192,6 +242,7 @@ class AuthRepositoryTest {
             authApi = authApi,
             googleSessionApi = FakeGoogleSessionApi(TwinteSession("unused")),
             appleSessionApi = FakeAppleSessionApi(TwinteSession("unused")),
+            accountLocalDataSource = MemoryAccountLocalDataSource(),
         )
 
         assertFailsWith<TwinteApiException> {
@@ -209,6 +260,7 @@ class AuthRepositoryTest {
             authApi = authApi,
             googleSessionApi = FakeGoogleSessionApi(TwinteSession("unused")),
             appleSessionApi = FakeAppleSessionApi(TwinteSession("unused")),
+            accountLocalDataSource = MemoryAccountLocalDataSource(),
         )
 
         repository.deleteAccount()
@@ -228,6 +280,7 @@ class AuthRepositoryTest {
             authApi = authApi,
             googleSessionApi = FakeGoogleSessionApi(TwinteSession("unused")),
             appleSessionApi = FakeAppleSessionApi(TwinteSession("unused")),
+            accountLocalDataSource = MemoryAccountLocalDataSource(),
         )
 
         assertFailsWith<TwinteApiException> {

@@ -95,6 +95,10 @@ internal class AuthStateHolder(
         applySession(authService.signInWithGoogleIdToken(idToken))
     }
 
+    fun handleExternalFailure(error: Throwable) {
+        applyFailure(error)
+    }
+
     private fun launchOperation(message: String, operation: suspend () -> Unit) {
         if (_uiState.value.isLoading) return
         scope.launch {
@@ -109,7 +113,10 @@ internal class AuthStateHolder(
         }
     }
 
-    private fun applySession(session: AuthSession, message: String = "Signed in") {
+    private fun applySession(
+        session: AuthSession,
+        message: String = if (session.isOffline) "Offline; using saved data" else "Signed in",
+    ) {
         _uiState.update {
             it.copy(
                 authState = AuthState.LoggedIn(session),

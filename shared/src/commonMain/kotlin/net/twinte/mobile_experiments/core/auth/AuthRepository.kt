@@ -3,6 +3,7 @@ package net.twinte.mobile_experiments.core.auth
 import kotlinx.coroutines.CancellationException
 import net.twinte.mobile_experiments.core.api.AuthApi
 import net.twinte.mobile_experiments.core.api.TwinteApiException
+import net.twinte.mobile_experiments.core.api.TwinteNetworkException
 import net.twinte.mobile_experiments.core.domain.AuthProvider
 import net.twinte.mobile_experiments.core.domain.User
 
@@ -11,17 +12,32 @@ class AuthRepository(
     private val authApi: AuthApi,
     private val googleSessionApi: GoogleSessionApi,
     private val appleSessionApi: AppleSessionApi,
+    private val accountLocalDataSource: AccountLocalDataSource,
 ) : AuthService {
     override suspend fun restoreSession(): AuthSession? {
-        val session = sessionStore.getSession() ?: return null
+        val session = sessionStore.getSession() ?: run {
+            accountLocalDataSource.clearActiveAccountAndData()
+            return null
+        }
+        val cachedUser = accountLocalDataSource.getActiveUser()
         return runCatching {
-            AuthSession(session.sessionId, authApi.getMe(session))
+            val user = authApi.getMe(session)
+            accountLocalDataSource.saveActiveUser(user)
+            AuthSession(session.sessionId, user)
         }.onFailure { error ->
             if (error.isUnauthorized()) {
                 sessionStore.clearSessionId()
+                accountLocalDataSource.clearActiveAccountAndData()
             }
         }.getOrElse { error ->
             if (error.isUnauthorized()) return null
+            if (cachedUser != null && error.allowsOfflineSession()) {
+                return AuthSession(
+                    sessionId = session.sessionId,
+                    user = cachedUser,
+                    isOffline = true,
+                )
+            }
             throw error
         }
     }
@@ -38,7 +54,9 @@ class AuthRepository(
 
     override suspend fun getMe(): User {
         return withAuthenticatedSession { session ->
-            authApi.getMe(session)
+            authApi.getMe(session).also {
+                accountLocalDataSource.saveActiveUser(it)
+            }
         }
     }
 
@@ -55,6 +73,7 @@ class AuthRepository(
             remoteFailure = error
         } finally {
             sessionStore.clearSessionId()
+            accountLocalDataSource.clearActiveAccountAndData()
         }
         return remoteFailure?.let(SignOutResult::LocalOnly)
             ?: SignOutResult.RemoteAndLocal
@@ -62,6 +81,7 @@ class AuthRepository(
 
     private suspend fun validateAndSaveSession(session: TwinteSession): AuthSession {
         val authSession = AuthSession(session.sessionId, authApi.getMe(session))
+        accountLocalDataSource.saveActiveUser(authSession.user)
         sessionStore.saveSessionId(session.sessionId)
         return authSession
     }
@@ -69,7 +89,9 @@ class AuthRepository(
     override suspend fun deleteUserAuthentication(provider: AuthProvider): AuthSession {
         return withAuthenticatedSession { session ->
             authApi.deleteUserAuthentication(session, provider)
-            AuthSession(session.sessionId, authApi.getMe(session))
+            val user = authApi.getMe(session)
+            accountLocalDataSource.saveActiveUser(user)
+            AuthSession(session.sessionId, user)
         }
     }
 
@@ -78,6 +100,7 @@ class AuthRepository(
             authApi.deleteAccount(session)
         }
         sessionStore.clearSessionId()
+        accountLocalDataSource.clearActiveAccountAndData()
     }
 
     private suspend fun requireSession(): TwinteSession =
@@ -90,6 +113,7 @@ class AuthRepository(
         }.onFailure { error ->
             if (error.isUnauthorized()) {
                 sessionStore.clearSessionId()
+                accountLocalDataSource.clearActiveAccountAndData()
             }
         }.getOrThrow()
     }
@@ -98,6 +122,7 @@ class AuthRepository(
 data class AuthSession(
     val sessionId: String,
     val user: User,
+    val isOffline: Boolean = false,
 )
 
 sealed interface SignOutResult {
@@ -106,8 +131,11 @@ sealed interface SignOutResult {
     data class LocalOnly(val cause: Throwable) : SignOutResult
 }
 
-private suspend fun SessionStore.getSession(): TwinteSession? =
-    getSessionId()?.let(::TwinteSession)
-
 private fun Throwable.isUnauthorized(): Boolean =
     this is TwinteApiException && isUnauthorized
+
+private fun Throwable.allowsOfflineSession(): Boolean =
+    this is TwinteNetworkException ||
+        (this is TwinteApiException && statusCode >= ServerErrorStatusCode)
+
+private const val ServerErrorStatusCode = 500

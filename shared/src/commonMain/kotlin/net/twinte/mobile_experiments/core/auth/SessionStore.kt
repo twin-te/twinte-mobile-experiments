@@ -8,6 +8,9 @@ interface SessionStore {
     suspend fun clearSessionId()
 }
 
+internal suspend fun SessionStore.getSession(): TwinteSession? =
+    getSessionId()?.let(::TwinteSession)
+
 interface SecureKeyValueStore {
     suspend fun getString(key: String): String?
 

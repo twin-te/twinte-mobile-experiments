@@ -2,18 +2,13 @@ package net.twinte.mobile_experiments.core.api.ktor
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.request.accept
 import io.ktor.client.request.get
 import io.ktor.client.request.header
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.Url
 import io.ktor.http.URLBuilder
 import io.ktor.http.appendPathSegments
-import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import net.twinte.api.auth.v1.DeleteAccountRequest
 import net.twinte.api.auth.v1.DeleteUserAuthenticationRequest
@@ -38,6 +33,8 @@ class KtorAuthApi(
     private val appBaseUrl: Url = Url("https://app.twinte.net"),
     private val httpClient: HttpClient,
 ) : AuthApi {
+    private val connectTransport = ConnectJsonTransport(apiBaseUrl, httpClient)
+
     constructor(
         apiBaseUrl: String,
         appBaseUrl: String = apiBaseUrl.removeSuffix("/api/v4"),
@@ -58,16 +55,16 @@ class KtorAuthApi(
     }
 
     override suspend fun logout(session: TwinteSession) {
-        val response = mapKtorNetworkErrors {
-            httpClient.get(authUrl("logout")) {
+        mapKtorNetworkErrors {
+            val response = httpClient.get(authUrl("logout")) {
                 header(HttpHeaders.Cookie, "${session.cookieName}=${session.sessionId}")
                 url {
                     parameters.append("redirect_url", appBaseUrl.toString())
                 }
             }
-        }
-        if (!response.status.isSuccess() && response.status != HttpStatusCode.Found) {
-            throw TwinteApiException(response.status.value, response.body<String>())
+            if (!response.status.isSuccess() && response.status != HttpStatusCode.Found) {
+                throw TwinteApiException(response.status.value, response.body<String>())
+            }
         }
     }
 
@@ -91,35 +88,18 @@ class KtorAuthApi(
         session: TwinteSession,
         method: String,
         requestBody: String,
-    ): String {
-        val response = mapKtorNetworkErrors {
-            httpClient.post(connectUrl("auth.v1.AuthService", method)) {
-                accept(ContentType.Application.Json)
-                contentType(ContentType.Application.Json)
-                header("Connect-Protocol-Version", "1")
-                header(HttpHeaders.Cookie, "${session.cookieName}=${session.sessionId}")
-                setBody(requestBody)
-            }
-        }
-        val body = response.body<String>()
-        if (!response.status.isSuccess()) {
-            throw TwinteApiException(response.status.value, body)
-        }
-        return body
-    }
-
-    private fun connectUrl(service: String, method: String): Url =
-        URLBuilder(apiBaseUrl).apply {
-            appendPathSegments(service, method)
-        }.build()
+    ): String = connectTransport.post(
+        service = "auth.v1.AuthService",
+        method = method,
+        session = session,
+        requestBody = requestBody,
+    )
 
     private fun authUrl(method: String): Url =
         URLBuilder(appBaseUrl).apply {
             appendPathSegments("auth", "v4", method)
         }.build()
 }
-
-typealias KtorApiException = TwinteApiException
 
 private fun GetMeResponse.toDomainUser(): User {
     val user = requireNotNull(user) { "GetMeResponse.user is missing" }
