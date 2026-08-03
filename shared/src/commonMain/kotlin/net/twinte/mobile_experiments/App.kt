@@ -90,6 +90,9 @@ fun App(
                 onDeleteAccount = authStateHolder::deleteAccount,
                 timetableUiState = timetableUiState,
                 onLoadTimetable = timetableStateHolder::refreshTimetable,
+                onPreviousYear = timetableStateHolder::selectPreviousYear,
+                onNextYear = timetableStateHolder::selectNextYear,
+                onSelectModule = timetableStateHolder::selectModule,
                 dailyTimetableUiState = dailyTimetableUiState,
                 onLoadDailyTimetable = timetableStateHolder::refreshDailyTimetable,
             )
