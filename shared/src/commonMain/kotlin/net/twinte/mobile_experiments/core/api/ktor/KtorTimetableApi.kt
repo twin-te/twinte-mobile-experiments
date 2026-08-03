@@ -1,25 +1,13 @@
 package net.twinte.mobile_experiments.core.api.ktor
 
 import io.ktor.client.HttpClient
-import io.ktor.client.call.body
-import io.ktor.client.request.accept
-import io.ktor.client.request.header
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
 import io.ktor.http.Url
-import io.ktor.http.URLBuilder
-import io.ktor.http.appendPathSegments
-import io.ktor.http.contentType
-import io.ktor.http.isSuccess
 import net.twinte.api.shared.AcademicYear
 import net.twinte.api.timetable.v1.ListRegisteredCoursesRequest
 import net.twinte.api.timetable.v1.ListRegisteredCoursesResponse
 import net.twinte.api.timetable.v1.ListTagsRequest
 import net.twinte.api.timetable.v1.ListTagsResponse
 import net.twinte.mobile_experiments.core.api.TimetableApi
-import net.twinte.mobile_experiments.core.api.TwinteApiException
 import net.twinte.mobile_experiments.core.auth.TwinteSession
 import net.twinte.mobile_experiments.core.domain.CourseMethod
 import net.twinte.mobile_experiments.core.domain.CourseSchedule
@@ -42,6 +30,8 @@ class KtorTimetableApi(
     private val apiBaseUrl: Url = Url("https://app.twinte.net/api/v4"),
     private val httpClient: HttpClient,
 ) : TimetableApi {
+    private val connectTransport = ConnectJsonTransport(apiBaseUrl, httpClient)
+
     constructor(
         apiBaseUrl: String,
         httpClient: HttpClient,
@@ -78,27 +68,12 @@ class KtorTimetableApi(
         session: TwinteSession,
         method: String,
         requestBody: String,
-    ): String {
-        val response = mapKtorNetworkErrors {
-            httpClient.post(connectUrl("timetable.v1.TimetableService", method)) {
-                accept(ContentType.Application.Json)
-                contentType(ContentType.Application.Json)
-                header("Connect-Protocol-Version", "1")
-                header(HttpHeaders.Cookie, "${session.cookieName}=${session.sessionId}")
-                setBody(requestBody)
-            }
-        }
-        val body = response.body<String>()
-        if (!response.status.isSuccess()) {
-            throw TwinteApiException(response.status.value, body)
-        }
-        return body
-    }
-
-    private fun connectUrl(service: String, method: String): Url =
-        URLBuilder(apiBaseUrl).apply {
-            appendPathSegments(service, method)
-        }.build()
+    ): String = connectTransport.post(
+        service = "timetable.v1.TimetableService",
+        method = method,
+        session = session,
+        requestBody = requestBody,
+    )
 }
 
 internal fun ApiRegisteredCourse.toDomainRegisteredCourse(): RegisteredCourse =

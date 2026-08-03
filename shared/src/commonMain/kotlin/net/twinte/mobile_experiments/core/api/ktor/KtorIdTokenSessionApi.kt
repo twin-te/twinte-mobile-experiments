@@ -22,8 +22,8 @@ internal suspend fun createSessionWithIdToken(
     authorizationCode: String? = null,
     currentSession: TwinteSession? = null,
 ): TwinteSession {
-    val response = mapKtorNetworkErrors {
-        httpClient.post("$appBaseUrl/auth/v4/$providerPath/idToken") {
+    return mapKtorNetworkErrors {
+        val response = httpClient.post("$appBaseUrl/auth/v4/$providerPath/idToken") {
             currentSession?.let {
                 header(HttpHeaders.Cookie, "${it.cookieName}=${it.sessionId}")
             }
@@ -37,23 +37,23 @@ internal suspend fun createSessionWithIdToken(
                 ),
             )
         }
-    }
-    if (response.status != HttpStatusCode.Found) {
-        val body = response.body<String>()
-        throw TwinteApiException(response.status.value, body.ifBlank { "Session creation failed" })
-    }
-    response.headers.getAll(HttpHeaders.SetCookie)
-        .orEmpty()
-        .mapNotNull { header ->
-            runCatching {
-                parseServerSetCookieHeader(header)
-            }.getOrNull()
+        if (response.status != HttpStatusCode.Found) {
+            val body = response.body<String>()
+            throw TwinteApiException(response.status.value, body.ifBlank { "Session creation failed" })
         }
-        .firstOrNull { it.name == SessionCookieName }
-        ?.value
-        ?.takeIf { it.isNotEmpty() }
-        ?.let { return TwinteSession(sessionId = it) }
-    throw TwinteApiException(response.status.value, "Session cookie is missing")
+        response.headers.getAll(HttpHeaders.SetCookie)
+            .orEmpty()
+            .mapNotNull { header ->
+                runCatching {
+                    parseServerSetCookieHeader(header)
+                }.getOrNull()
+            }
+            .firstOrNull { it.name == SessionCookieName }
+            ?.value
+            ?.takeIf { it.isNotEmpty() }
+            ?.let { TwinteSession(sessionId = it) }
+            ?: throw TwinteApiException(response.status.value, "Session cookie is missing")
+    }
 }
 
 private const val SessionCookieName = "twinte_session"
