@@ -7,6 +7,7 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSApplicationSupportDirectory
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSUserDomainMask
+import platform.Foundation.NSURLIsExcludedFromBackupKey
 
 @Composable
 @OptIn(ExperimentalForeignApi::class)
@@ -21,10 +22,26 @@ actual fun rememberTwinteDatabase(): TwinteDatabase =
                 error = null,
             ),
         )
+        val databaseDirectory = requireNotNull(
+            applicationSupportUrl.URLByAppendingPathComponent(DatabaseDirectoryName, isDirectory = true),
+        )
+        check(
+            NSFileManager.defaultManager.createDirectoryAtURL(
+                url = databaseDirectory,
+                withIntermediateDirectories = true,
+                attributes = null,
+                error = null,
+            ),
+        )
+        check(
+            databaseDirectory.setResourceValue(
+                value = true,
+                forKey = NSURLIsExcludedFromBackupKey,
+                error = null,
+            ),
+        )
         val databasePath = requireNotNull(
-            requireNotNull(
-                applicationSupportUrl.URLByAppendingPathComponent(TWINTE_DATABASE_NAME),
-            ).path,
+            requireNotNull(databaseDirectory.URLByAppendingPathComponent(TWINTE_DATABASE_NAME)).path,
         )
         buildTwinteDatabase(
             Room.databaseBuilder<TwinteDatabase>(
@@ -33,3 +50,5 @@ actual fun rememberTwinteDatabase(): TwinteDatabase =
             ),
         )
     }
+
+private const val DatabaseDirectoryName = "OfflineData"

@@ -12,7 +12,7 @@ actual fun rememberTwinteDatabase(): TwinteDatabase {
         buildTwinteDatabase(
             Room.databaseBuilder<TwinteDatabase>(
                 context = context,
-                name = context.getDatabasePath(TWINTE_DATABASE_NAME).absolutePath,
+                name = context.noBackupFilesDir.resolve(TWINTE_DATABASE_NAME).absolutePath,
                 factory = TwinteDatabaseConstructor::initialize,
             ),
         )
