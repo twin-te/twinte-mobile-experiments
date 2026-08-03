@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -29,10 +31,14 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
+import kotlin.time.Clock
 import net.twinte.mobile_experiments.core.api.ktor.KtorAppleSessionApi
 import net.twinte.mobile_experiments.core.api.ktor.KtorAuthApi
 import net.twinte.mobile_experiments.core.api.ktor.KtorGoogleSessionApi
 import net.twinte.mobile_experiments.core.api.ktor.KtorTimetableApi
+import net.twinte.mobile_experiments.core.api.ktor.KtorUnifiedApi
 import net.twinte.mobile_experiments.core.api.ktor.rememberTwinteHttpClient
 import net.twinte.mobile_experiments.core.api.ktor.rememberTwinteLoginHttpClient
 import net.twinte.mobile_experiments.core.auth.AuthRepository
@@ -40,9 +46,12 @@ import net.twinte.mobile_experiments.core.auth.AuthState
 import net.twinte.mobile_experiments.core.auth.MemorySessionStore
 import net.twinte.mobile_experiments.core.auth.SessionStore
 import net.twinte.mobile_experiments.core.database.RoomAccountLocalDataSource
+import net.twinte.mobile_experiments.core.database.RoomDailyTimetableLocalDataSource
 import net.twinte.mobile_experiments.core.database.RoomTimetableLocalDataSource
 import net.twinte.mobile_experiments.core.database.rememberTwinteDatabase
 import net.twinte.mobile_experiments.core.domain.AuthProvider
+import net.twinte.mobile_experiments.core.timetable.DailyCourseSlot
+import net.twinte.mobile_experiments.core.timetable.DailyTimetableRepository
 import net.twinte.mobile_experiments.core.timetable.TimetableRepository
 
 @Composable
@@ -88,6 +97,20 @@ fun App(
             localDataSource = RoomTimetableLocalDataSource(database.timetableDao()),
         )
     }
+    val dailyTimetableRepository = remember(
+        sessionStore,
+        accountLocalDataSource,
+        database,
+        httpClient,
+        normalizedAppBaseUrl,
+    ) {
+        DailyTimetableRepository(
+            sessionStore = sessionStore,
+            accountLocalDataSource = accountLocalDataSource,
+            api = KtorUnifiedApi(apiBaseUrl = "$normalizedAppBaseUrl/api/v4", httpClient = httpClient),
+            localDataSource = RoomDailyTimetableLocalDataSource(database.dailyTimetableDao()),
+        )
+    }
     val scope = rememberCoroutineScope()
     val stateHolder = remember(
         authRepository,
@@ -104,6 +127,10 @@ fun App(
     }
     val uiState by stateHolder.uiState.collectAsState()
     var timetableUiState by remember { mutableStateOf(TimetableUiState()) }
+    var dailyTimetableUiState by remember { mutableStateOf(DailyTimetableUiState()) }
+    val today = remember {
+        Clock.System.todayIn(TimeZone.currentSystemDefault())
+    }
 
     val loggedInUser = (uiState.authState as? AuthState.LoggedIn)?.user
 
@@ -120,6 +147,28 @@ fun App(
                 stateHolder.handleExternalFailure(error)
                 timetableUiState = timetableUiState.copy(
                     message = "Refresh failed; showing saved timetable",
+                    isLoading = false,
+                )
+            }
+        }
+    }
+
+    fun loadDailyTimetable() {
+        if (dailyTimetableUiState.isLoading) return
+        val accountId = loggedInUser?.id ?: return
+        scope.launch {
+            dailyTimetableUiState = dailyTimetableUiState.copy(
+                isLoading = true,
+                message = "Refreshing today's schedule...",
+            )
+            try {
+                dailyTimetableRepository.refresh(accountId, today)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                stateHolder.handleExternalFailure(error)
+                dailyTimetableUiState = dailyTimetableUiState.copy(
+                    message = "Refresh failed; showing saved daily schedule",
                     isLoading = false,
                 )
             }
@@ -149,6 +198,32 @@ fun App(
             )
         }
     }
+    LaunchedEffect(loggedInUser?.id, today, dailyTimetableRepository) {
+        val accountId = loggedInUser?.id
+        if (accountId == null) {
+            dailyTimetableUiState = DailyTimetableUiState(date = today.toString())
+            return@LaunchedEffect
+        }
+        dailyTimetableRepository.observe(accountId, today).collect { snapshot ->
+            dailyTimetableUiState = if (snapshot == null) {
+                DailyTimetableUiState(date = today.toString())
+            } else {
+                val timetable = snapshot.timetable
+                DailyTimetableUiState(
+                    message = "Showing saved daily schedule",
+                    date = timetable.date,
+                    moduleLabel = timetable.module.label,
+                    eventLabel = timetable.eventLabel,
+                    lectureCount = timetable.lectureCount,
+                    firstCourseName = timetable.slots
+                        .filterIsInstance<DailyCourseSlot.Course>()
+                        .firstOrNull()
+                        ?.name,
+                    lastSuccessfulSyncAtMillis = snapshot.lastSuccessfulSyncAtMillis,
+                )
+            }
+        }
+    }
 
     MaterialTheme {
         Surface(
@@ -167,6 +242,8 @@ fun App(
                 onDeleteAccount = stateHolder::deleteAccount,
                 timetableUiState = timetableUiState,
                 onLoadTimetable = ::loadTimetable,
+                dailyTimetableUiState = dailyTimetableUiState,
+                onLoadDailyTimetable = ::loadDailyTimetable,
             )
         }
     }
@@ -191,6 +268,8 @@ private fun AuthScreen(
     onDeleteAccount: () -> Unit,
     timetableUiState: TimetableUiState,
     onLoadTimetable: () -> Unit,
+    dailyTimetableUiState: DailyTimetableUiState,
+    onLoadDailyTimetable: () -> Unit,
 ) {
     var showDeleteAccountConfirmation by remember { mutableStateOf(false) }
     val loggedInState = uiState.authState as? AuthState.LoggedIn
@@ -202,6 +281,7 @@ private fun AuthScreen(
         modifier = Modifier
             .safeContentPadding()
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -275,6 +355,32 @@ private fun AuthScreen(
             if (timetableUiState.isLoading) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
+            OutlinedButton(
+                enabled = !uiState.isLoading && !dailyTimetableUiState.isLoading,
+                onClick = onLoadDailyTimetable,
+            ) {
+                Text("Load Today's Schedule")
+            }
+            Text(dailyTimetableUiState.message, style = MaterialTheme.typography.bodyMedium)
+            Text("Date: ${dailyTimetableUiState.date}", style = MaterialTheme.typography.bodyMedium)
+            dailyTimetableUiState.moduleLabel?.let {
+                Text("Module: $it", style = MaterialTheme.typography.bodyMedium)
+            }
+            dailyTimetableUiState.eventLabel?.let {
+                Text("Day: $it", style = MaterialTheme.typography.bodyMedium)
+            }
+            dailyTimetableUiState.lectureCount?.let {
+                Text("Today's courses: $it", style = MaterialTheme.typography.bodyMedium)
+            }
+            dailyTimetableUiState.firstCourseName?.let {
+                Text("First today: $it", style = MaterialTheme.typography.bodyMedium)
+            }
+            dailyTimetableUiState.lastSuccessfulSyncAtMillis?.let {
+                Text("Daily sync: $it", style = MaterialTheme.typography.bodyMedium)
+            }
+            if (dailyTimetableUiState.isLoading) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
             if (canUnlinkProvider) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (AuthProvider.Google in linkedProviders) {
@@ -339,6 +445,17 @@ private data class TimetableUiState(
     val isLoading: Boolean = false,
     val courseCount: Int? = null,
     val tagCount: Int? = null,
+    val firstCourseName: String? = null,
+    val lastSuccessfulSyncAtMillis: Long? = null,
+)
+
+private data class DailyTimetableUiState(
+    val message: String = "No saved daily schedule",
+    val isLoading: Boolean = false,
+    val date: String = "",
+    val moduleLabel: String? = null,
+    val eventLabel: String? = null,
+    val lectureCount: Int? = null,
     val firstCourseName: String? = null,
     val lastSuccessfulSyncAtMillis: Long? = null,
 )
