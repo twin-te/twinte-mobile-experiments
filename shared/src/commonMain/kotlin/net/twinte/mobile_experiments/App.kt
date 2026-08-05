@@ -99,6 +99,10 @@ fun App(
                 onRegisterCourse = timetableStateHolder::registerCourse,
                 onUpdateCourse = timetableStateHolder::updateCourse,
                 onDeleteCourse = timetableStateHolder::deleteCourse,
+                onCreateTag = timetableStateHolder::createTag,
+                onUpdateTag = timetableStateHolder::updateTag,
+                onDeleteTag = timetableStateHolder::deleteTag,
+                onMoveTag = timetableStateHolder::moveTag,
                 dailyTimetableUiState = dailyTimetableUiState,
                 onLoadDailyTimetable = timetableStateHolder::refreshDailyTimetable,
             )

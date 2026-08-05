@@ -116,6 +116,40 @@ class TimetableStateHolderTest {
         assertEquals(listOf("GB12345"), timetableService.registeredCodes)
         assertEquals("Registered Distributed Systems", stateHolder.courseOperationsUiState.value.message)
     }
+
+    @Test
+    fun managesTagsAndSendsCompleteOrder() = runTest {
+        val firstTag = Tag("first", "First", 0)
+        val secondTag = Tag("second", "Second", 1)
+        val timetableService = FakeTimetableService(
+            initialSnapshot = TimetableSnapshot(tags = listOf(firstTag, secondTag)),
+        )
+        val stateHolder = TimetableStateHolder(
+            timetableService = timetableService,
+            dailyTimetableService = FakeDailyTimetableService(),
+            initialDate = LocalDate(2026, 5, 1),
+            scope = backgroundScope,
+            onFailure = {},
+        )
+        stateHolder.bind("user-id", LocalDate(2026, 5, 1))
+        runCurrent()
+
+        assertEquals(listOf(firstTag, secondTag), stateHolder.timetableUiState.value.tags)
+
+        stateHolder.moveTag(firstTag, 1)
+        runCurrent()
+        stateHolder.createTag("New")
+        runCurrent()
+        stateHolder.updateTag(firstTag, "Renamed")
+        runCurrent()
+        stateHolder.deleteTag(secondTag)
+        runCurrent()
+
+        assertEquals(listOf("New"), timetableService.createdTagNames)
+        assertEquals(listOf("first" to "Renamed"), timetableService.updatedTags)
+        assertEquals(listOf("second"), timetableService.deletedTagIds)
+        assertEquals(listOf("second", "first"), timetableService.rearrangedTagIds)
+    }
 }
 
 private class FakeTimetableService(
@@ -126,6 +160,11 @@ private class FakeTimetableService(
     var lastSearchInput: SearchCoursesInput? = null
         private set
     val registeredCodes = mutableListOf<String>()
+    val createdTagNames = mutableListOf<String>()
+    val updatedTags = mutableListOf<Pair<String, String>>()
+    val deletedTagIds = mutableListOf<String>()
+    var rearrangedTagIds: List<String> = emptyList()
+        private set
 
     override suspend fun searchCourses(input: SearchCoursesInput): List<Course> {
         lastSearchInput = input
@@ -150,15 +189,24 @@ private class FakeTimetableService(
 
     override suspend fun deleteCourse(accountId: String, id: String) = error("Unused in this test")
 
-    override suspend fun createTag(accountId: String, name: String): Tag = error("Unused in this test")
+    override suspend fun createTag(accountId: String, name: String): Tag {
+        createdTagNames += name
+        return Tag("created", name, 0)
+    }
 
-    override suspend fun updateTag(accountId: String, id: String, name: String): Tag =
-        error("Unused in this test")
+    override suspend fun updateTag(accountId: String, id: String, name: String): Tag {
+        updatedTags += id to name
+        return Tag(id, name, 0)
+    }
 
-    override suspend fun deleteTag(accountId: String, id: String) = error("Unused in this test")
+    override suspend fun deleteTag(accountId: String, id: String) {
+        deletedTagIds += id
+    }
 
-    override suspend fun rearrangeTags(accountId: String, ids: List<String>): List<Tag> =
-        error("Unused in this test")
+    override suspend fun rearrangeTags(accountId: String, ids: List<String>): List<Tag> {
+        rearrangedTagIds = ids
+        return emptyList()
+    }
 }
 
 private fun course(

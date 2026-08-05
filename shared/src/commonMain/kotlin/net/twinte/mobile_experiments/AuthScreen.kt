@@ -38,6 +38,7 @@ import net.twinte.mobile_experiments.core.domain.Course
 import net.twinte.mobile_experiments.core.domain.Day
 import net.twinte.mobile_experiments.core.domain.Module
 import net.twinte.mobile_experiments.core.domain.RegisteredCourse
+import net.twinte.mobile_experiments.core.domain.Tag
 import net.twinte.mobile_experiments.core.domain.UpdateRegisteredCourseInput
 
 @Composable
@@ -61,6 +62,10 @@ internal fun AuthScreen(
     onRegisterCourse: (Course) -> Unit,
     onUpdateCourse: (UpdateRegisteredCourseInput) -> Unit,
     onDeleteCourse: (RegisteredCourse) -> Unit,
+    onCreateTag: (String) -> Unit,
+    onUpdateTag: (Tag, String) -> Unit,
+    onDeleteTag: (Tag) -> Unit,
+    onMoveTag: (Tag, Int) -> Unit,
     dailyTimetableUiState: DailyTimetableUiState,
     onLoadDailyTimetable: () -> Unit,
 ) {
@@ -138,6 +143,10 @@ internal fun AuthScreen(
                 onRegisterCourse = onRegisterCourse,
                 onUpdateCourse = onUpdateCourse,
                 onDeleteCourse = onDeleteCourse,
+                onCreateTag = onCreateTag,
+                onUpdateTag = onUpdateTag,
+                onDeleteTag = onDeleteTag,
+                onMoveTag = onMoveTag,
                 dailyTimetableUiState = dailyTimetableUiState,
                 onLoadDailyTimetable = onLoadDailyTimetable,
             )
@@ -197,6 +206,10 @@ private fun TimetableSection(
     onRegisterCourse: (Course) -> Unit,
     onUpdateCourse: (UpdateRegisteredCourseInput) -> Unit,
     onDeleteCourse: (RegisteredCourse) -> Unit,
+    onCreateTag: (String) -> Unit,
+    onUpdateTag: (Tag, String) -> Unit,
+    onDeleteTag: (Tag) -> Unit,
+    onMoveTag: (Tag, Int) -> Unit,
     dailyTimetableUiState: DailyTimetableUiState,
     onLoadDailyTimetable: () -> Unit,
 ) {
@@ -224,11 +237,16 @@ private fun TimetableSection(
     CourseOperationsSection(
         selectedYear = timetableUiState.selectedYear,
         registeredCourses = timetableUiState.registeredCourses,
+        tags = timetableUiState.tags,
         uiState = courseOperationsUiState,
         onSearch = onSearchCourses,
         onRegister = onRegisterCourse,
         onUpdate = onUpdateCourse,
         onDelete = onDeleteCourse,
+        onCreateTag = onCreateTag,
+        onUpdateTag = onUpdateTag,
+        onDeleteTag = onDeleteTag,
+        onMoveTag = onMoveTag,
     )
 
     OutlinedButton(

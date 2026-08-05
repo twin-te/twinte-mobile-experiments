@@ -15,6 +15,7 @@ import net.twinte.mobile_experiments.core.domain.Day
 import net.twinte.mobile_experiments.core.domain.Module
 import net.twinte.mobile_experiments.core.domain.RegisteredCourse
 import net.twinte.mobile_experiments.core.domain.SearchCoursesInput
+import net.twinte.mobile_experiments.core.domain.Tag
 import net.twinte.mobile_experiments.core.domain.UpdateRegisteredCourseInput
 import net.twinte.mobile_experiments.core.timetable.DailyCourseSlot
 import net.twinte.mobile_experiments.core.timetable.DailyTimetableService
@@ -31,6 +32,7 @@ internal data class TimetableUiState(
     val tagCount: Int? = null,
     val cells: Map<TimetableSlot, List<TimetableCourseSummary>> = emptyMap(),
     val registeredCourses: List<RegisteredCourse> = emptyList(),
+    val tags: List<Tag> = emptyList(),
     val lastSuccessfulSyncAt: Instant? = null,
 )
 
@@ -199,6 +201,53 @@ internal class TimetableStateHolder(
         }
     }
 
+    fun createTag(name: String) {
+        val accountId = accountId ?: return
+        launchCourseOperation("Creating tag...") {
+            val tag = timetableService.createTag(accountId, name)
+            _courseOperationsUiState.update {
+                it.copy(message = "Created ${tag.name}", isLoading = false)
+            }
+        }
+    }
+
+    fun updateTag(tag: Tag, name: String) {
+        val accountId = accountId ?: return
+        launchCourseOperation("Updating tag...") {
+            val updatedTag = timetableService.updateTag(accountId, tag.id, name)
+            _courseOperationsUiState.update {
+                it.copy(message = "Updated ${updatedTag.name}", isLoading = false)
+            }
+        }
+    }
+
+    fun deleteTag(tag: Tag) {
+        val accountId = accountId ?: return
+        launchCourseOperation("Deleting ${tag.name}...") {
+            timetableService.deleteTag(accountId, tag.id)
+            _courseOperationsUiState.update {
+                it.copy(message = "Deleted ${tag.name}", isLoading = false)
+            }
+        }
+    }
+
+    fun moveTag(tag: Tag, offset: Int) {
+        val accountId = accountId ?: return
+        val tags = timetableSnapshot.tags.sortedBy(Tag::order).toMutableList()
+        val currentIndex = tags.indexOfFirst { it.id == tag.id }
+        val destinationIndex = currentIndex + offset
+        if (currentIndex == -1 || destinationIndex !in tags.indices) return
+        val movedTag = tags.removeAt(currentIndex)
+        tags.add(destinationIndex, movedTag)
+
+        launchCourseOperation("Rearranging tags...") {
+            timetableService.rearrangeTags(accountId, tags.map(Tag::id))
+            _courseOperationsUiState.update {
+                it.copy(message = "Rearranged tags", isLoading = false)
+            }
+        }
+    }
+
     fun refreshDailyTimetable() {
         if (_dailyTimetableUiState.value.isLoading) return
         val accountId = accountId ?: return
@@ -332,6 +381,7 @@ private fun TimetableSnapshot.toUiState(
         tagCount = tags.size,
         cells = cells,
         registeredCourses = selectedCourses,
+        tags = tags.sortedBy(Tag::order),
         lastSuccessfulSyncAt = lastSuccessfulSyncAt,
     )
 }
