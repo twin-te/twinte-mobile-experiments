@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Month
+import net.twinte.mobile_experiments.core.api.TwinteApiException
 import net.twinte.mobile_experiments.core.domain.Course
 import net.twinte.mobile_experiments.core.domain.Day
 import net.twinte.mobile_experiments.core.domain.Module
@@ -175,9 +176,7 @@ internal class TimetableStateHolder(
         val accountId = accountId ?: return
         launchCourseOperation("Registering ${course.name}...") {
             timetableService.createCoursesByCodes(accountId, course.year, listOf(course.code))
-            _courseOperationsUiState.update {
-                it.copy(message = "Registered ${course.name}", isLoading = false)
-            }
+            completeCourseMutation(accountId, "Registered ${course.name}")
         }
     }
 
@@ -185,9 +184,7 @@ internal class TimetableStateHolder(
         val accountId = accountId ?: return
         launchCourseOperation("Updating course...") {
             val course = timetableService.updateCourse(accountId, input)
-            _courseOperationsUiState.update {
-                it.copy(message = "Updated ${course.name}", isLoading = false)
-            }
+            completeCourseMutation(accountId, "Updated ${course.name}")
         }
     }
 
@@ -195,9 +192,7 @@ internal class TimetableStateHolder(
         val accountId = accountId ?: return
         launchCourseOperation("Deleting ${course.name}...") {
             timetableService.deleteCourse(accountId, course.id)
-            _courseOperationsUiState.update {
-                it.copy(message = "Deleted ${course.name}", isLoading = false)
-            }
+            completeCourseMutation(accountId, "Deleted ${course.name}")
         }
     }
 
@@ -319,6 +314,33 @@ internal class TimetableStateHolder(
             onError()
             false
         }
+
+    private suspend fun completeCourseMutation(accountId: String, successMessage: String) {
+        val dailyRefreshSucceeded = try {
+            dailyTimetableService.refresh(accountId, date)
+            true
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            if (error is TwinteApiException && error.isUnauthorized) {
+                onFailure(error)
+            }
+            _dailyTimetableUiState.update {
+                it.copy(message = "Refresh failed; showing saved daily schedule", isLoading = false)
+            }
+            false
+        }
+        _courseOperationsUiState.update {
+            it.copy(
+                message = if (dailyRefreshSucceeded) {
+                    successMessage
+                } else {
+                    "$successMessage; daily schedule refresh failed"
+                },
+                isLoading = false,
+            )
+        }
+    }
 
     private fun launchCourseOperation(
         loadingMessage: String,

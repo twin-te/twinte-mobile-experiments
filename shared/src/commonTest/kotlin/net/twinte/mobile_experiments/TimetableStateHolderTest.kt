@@ -94,9 +94,10 @@ class TimetableStateHolderTest {
     fun searchesAndRegistersCourseForActiveAccount() = runTest {
         val searchResult = catalogCourse("GB12345", "Distributed Systems")
         val timetableService = FakeTimetableService(searchResults = listOf(searchResult))
+        val dailyService = FakeDailyTimetableService()
         val stateHolder = TimetableStateHolder(
             timetableService = timetableService,
-            dailyTimetableService = FakeDailyTimetableService(),
+            dailyTimetableService = dailyService,
             initialDate = LocalDate(2026, 5, 1),
             scope = backgroundScope,
             onFailure = {},
@@ -114,7 +115,71 @@ class TimetableStateHolderTest {
         runCurrent()
 
         assertEquals(listOf("GB12345"), timetableService.registeredCodes)
+        assertEquals(listOf(LocalDate(2026, 5, 1)), dailyService.refreshedDates)
         assertEquals("Registered Distributed Systems", stateHolder.courseOperationsUiState.value.message)
+    }
+
+    @Test
+    fun keepsCourseMutationSuccessfulWhenDailyRefreshFails() = runTest {
+        val searchResult = catalogCourse("GB12345", "Distributed Systems")
+        val timetableService = FakeTimetableService(searchResults = listOf(searchResult))
+        val dailyService = FakeDailyTimetableService(refreshError = IllegalStateException("offline"))
+        val failures = mutableListOf<Throwable>()
+        val stateHolder = TimetableStateHolder(
+            timetableService = timetableService,
+            dailyTimetableService = dailyService,
+            initialDate = LocalDate(2026, 5, 1),
+            scope = backgroundScope,
+            onFailure = failures::add,
+        )
+        stateHolder.bind("user-id", LocalDate(2026, 5, 1))
+        runCurrent()
+
+        stateHolder.registerCourse(searchResult)
+        runCurrent()
+
+        assertEquals(listOf("GB12345"), timetableService.registeredCodes)
+        assertEquals(
+            "Registered Distributed Systems; daily schedule refresh failed",
+            stateHolder.courseOperationsUiState.value.message,
+        )
+        assertEquals(
+            "Refresh failed; showing saved daily schedule",
+            stateHolder.dailyTimetableUiState.value.message,
+        )
+        assertEquals(emptyList(), failures)
+    }
+
+    @Test
+    fun refreshesDailyTimetableAfterUpdatingAndDeletingCourse() = runTest {
+        val date = LocalDate(2026, 5, 1)
+        val registeredCourse = course(
+            year = 2026,
+            name = "Distributed Systems",
+            schedule = CourseSchedule(Module.SpringA, Day.Monday, 1, "3A204"),
+        )
+        val timetableService = FakeTimetableService(
+            initialSnapshot = TimetableSnapshot(courses = listOf(registeredCourse)),
+        )
+        val dailyService = FakeDailyTimetableService()
+        val stateHolder = TimetableStateHolder(
+            timetableService = timetableService,
+            dailyTimetableService = dailyService,
+            initialDate = date,
+            scope = backgroundScope,
+            onFailure = {},
+        )
+        stateHolder.bind("user-id", date)
+        runCurrent()
+
+        stateHolder.updateCourse(UpdateRegisteredCourseInput(registeredCourse.id, name = "Renamed"))
+        runCurrent()
+        stateHolder.deleteCourse(registeredCourse)
+        runCurrent()
+
+        assertEquals(listOf(registeredCourse.id), timetableService.updatedCourseIds)
+        assertEquals(listOf(registeredCourse.id), timetableService.deletedCourseIds)
+        assertEquals(listOf(date, date), dailyService.refreshedDates)
     }
 
     @Test
@@ -124,9 +189,10 @@ class TimetableStateHolderTest {
         val timetableService = FakeTimetableService(
             initialSnapshot = TimetableSnapshot(tags = listOf(firstTag, secondTag)),
         )
+        val dailyService = FakeDailyTimetableService()
         val stateHolder = TimetableStateHolder(
             timetableService = timetableService,
-            dailyTimetableService = FakeDailyTimetableService(),
+            dailyTimetableService = dailyService,
             initialDate = LocalDate(2026, 5, 1),
             scope = backgroundScope,
             onFailure = {},
@@ -149,6 +215,7 @@ class TimetableStateHolderTest {
         assertEquals(listOf("first" to "Renamed"), timetableService.updatedTags)
         assertEquals(listOf("second"), timetableService.deletedTagIds)
         assertEquals(listOf("second", "first"), timetableService.rearrangedTagIds)
+        assertEquals(emptyList(), dailyService.refreshedDates)
     }
 }
 
@@ -160,6 +227,8 @@ private class FakeTimetableService(
     var lastSearchInput: SearchCoursesInput? = null
         private set
     val registeredCodes = mutableListOf<String>()
+    val updatedCourseIds = mutableListOf<String>()
+    val deletedCourseIds = mutableListOf<String>()
     val createdTagNames = mutableListOf<String>()
     val updatedTags = mutableListOf<Pair<String, String>>()
     val deletedTagIds = mutableListOf<String>()
@@ -184,10 +253,15 @@ private class FakeTimetableService(
     override suspend fun createCourseManually(accountId: String, input: CreateRegisteredCourseInput) =
         error("Unused in this test")
 
-    override suspend fun updateCourse(accountId: String, input: UpdateRegisteredCourseInput) =
-        error("Unused in this test")
+    override suspend fun updateCourse(accountId: String, input: UpdateRegisteredCourseInput): RegisteredCourse {
+        updatedCourseIds += input.id
+        val course = snapshots.value.courses.first { it.id == input.id }
+        return course.copy(name = input.name ?: course.name)
+    }
 
-    override suspend fun deleteCourse(accountId: String, id: String) = error("Unused in this test")
+    override suspend fun deleteCourse(accountId: String, id: String) {
+        deletedCourseIds += id
+    }
 
     override suspend fun createTag(accountId: String, name: String): Tag {
         createdTagNames += name
@@ -241,13 +315,19 @@ private fun catalogCourse(code: String, name: String): Course =
         isAnnual = false,
     )
 
-private class FakeDailyTimetableService : DailyTimetableService {
+private class FakeDailyTimetableService(
+    private val refreshError: Throwable? = null,
+) : DailyTimetableService {
     val observedDates = mutableListOf<LocalDate>()
+    val refreshedDates = mutableListOf<LocalDate>()
 
     override fun observe(accountId: String, date: LocalDate): Flow<DailyTimetableSnapshot?> {
         observedDates += date
         return MutableStateFlow(null)
     }
 
-    override suspend fun refresh(accountId: String, date: LocalDate) = Unit
+    override suspend fun refresh(accountId: String, date: LocalDate) {
+        refreshedDates += date
+        refreshError?.let { throw it }
+    }
 }
