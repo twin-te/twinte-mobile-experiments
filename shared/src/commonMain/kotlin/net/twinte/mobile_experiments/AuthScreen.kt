@@ -34,8 +34,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import net.twinte.mobile_experiments.core.auth.AuthState
 import net.twinte.mobile_experiments.core.domain.AuthProvider
+import net.twinte.mobile_experiments.core.domain.Course
 import net.twinte.mobile_experiments.core.domain.Day
 import net.twinte.mobile_experiments.core.domain.Module
+import net.twinte.mobile_experiments.core.domain.RegisteredCourse
+import net.twinte.mobile_experiments.core.domain.UpdateRegisteredCourseInput
 
 @Composable
 internal fun AuthScreen(
@@ -53,6 +56,11 @@ internal fun AuthScreen(
     onPreviousYear: () -> Unit,
     onNextYear: () -> Unit,
     onSelectModule: (Module) -> Unit,
+    courseOperationsUiState: CourseOperationsUiState,
+    onSearchCourses: (String) -> Unit,
+    onRegisterCourse: (Course) -> Unit,
+    onUpdateCourse: (UpdateRegisteredCourseInput) -> Unit,
+    onDeleteCourse: (RegisteredCourse) -> Unit,
     dailyTimetableUiState: DailyTimetableUiState,
     onLoadDailyTimetable: () -> Unit,
 ) {
@@ -125,6 +133,11 @@ internal fun AuthScreen(
                 onPreviousYear = onPreviousYear,
                 onNextYear = onNextYear,
                 onSelectModule = onSelectModule,
+                courseOperationsUiState = courseOperationsUiState,
+                onSearchCourses = onSearchCourses,
+                onRegisterCourse = onRegisterCourse,
+                onUpdateCourse = onUpdateCourse,
+                onDeleteCourse = onDeleteCourse,
                 dailyTimetableUiState = dailyTimetableUiState,
                 onLoadDailyTimetable = onLoadDailyTimetable,
             )
@@ -179,6 +192,11 @@ private fun TimetableSection(
     onPreviousYear: () -> Unit,
     onNextYear: () -> Unit,
     onSelectModule: (Module) -> Unit,
+    courseOperationsUiState: CourseOperationsUiState,
+    onSearchCourses: (String) -> Unit,
+    onRegisterCourse: (Course) -> Unit,
+    onUpdateCourse: (UpdateRegisteredCourseInput) -> Unit,
+    onDeleteCourse: (RegisteredCourse) -> Unit,
     dailyTimetableUiState: DailyTimetableUiState,
     onLoadDailyTimetable: () -> Unit,
 ) {
@@ -202,6 +220,16 @@ private fun TimetableSection(
     if (timetableUiState.isLoading) {
         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
     }
+
+    CourseOperationsSection(
+        selectedYear = timetableUiState.selectedYear,
+        registeredCourses = timetableUiState.registeredCourses,
+        uiState = courseOperationsUiState,
+        onSearch = onSearchCourses,
+        onRegister = onRegisterCourse,
+        onUpdate = onUpdateCourse,
+        onDelete = onDeleteCourse,
+    )
 
     OutlinedButton(
         enabled = !authIsLoading && !dailyTimetableUiState.isLoading,

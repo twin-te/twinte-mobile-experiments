@@ -57,6 +57,7 @@ fun App(
 
     val authUiState by authStateHolder.uiState.collectAsState()
     val timetableUiState by timetableStateHolder.timetableUiState.collectAsState()
+    val courseOperationsUiState by timetableStateHolder.courseOperationsUiState.collectAsState()
     val dailyTimetableUiState by timetableStateHolder.dailyTimetableUiState.collectAsState()
     val loggedInUser = (authUiState.authState as? AuthState.LoggedIn)?.user
 
@@ -93,6 +94,11 @@ fun App(
                 onPreviousYear = timetableStateHolder::selectPreviousYear,
                 onNextYear = timetableStateHolder::selectNextYear,
                 onSelectModule = timetableStateHolder::selectModule,
+                courseOperationsUiState = courseOperationsUiState,
+                onSearchCourses = timetableStateHolder::searchCourses,
+                onRegisterCourse = timetableStateHolder::registerCourse,
+                onUpdateCourse = timetableStateHolder::updateCourse,
+                onDeleteCourse = timetableStateHolder::deleteCourse,
                 dailyTimetableUiState = dailyTimetableUiState,
                 onLoadDailyTimetable = timetableStateHolder::refreshDailyTimetable,
             )
