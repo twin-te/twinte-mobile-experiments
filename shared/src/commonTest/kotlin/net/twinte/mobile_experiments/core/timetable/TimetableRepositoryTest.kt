@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import net.twinte.mobile_experiments.core.api.TimetableApi
 import net.twinte.mobile_experiments.core.api.TwinteApiException
+import net.twinte.mobile_experiments.core.auth.AuthenticatedSessionProvider
 import net.twinte.mobile_experiments.core.auth.MemoryAccountLocalDataSource
 import net.twinte.mobile_experiments.core.auth.MemorySessionStore
 import net.twinte.mobile_experiments.core.auth.TwinteSession
@@ -76,8 +77,7 @@ class TimetableRepositoryTest {
             TimetableSnapshot(courses = listOf(course("cached-course"))),
         )
         val repository = TimetableRepository(
-            sessionStore = sessionStore,
-            accountLocalDataSource = accountStore,
+            authenticatedSessionProvider = AuthenticatedSessionProvider(sessionStore, accountStore),
             timetableApi = FakeTimetableApi(
                 listRegisteredCoursesResult = Result.failure(TwinteApiException(401, "unauthorized")),
             ),
@@ -172,8 +172,10 @@ class TimetableRepositoryTest {
         localDataSource: TimetableLocalDataSource,
     ): TimetableRepository =
         TimetableRepository(
-            sessionStore = MemorySessionStore("session-id"),
-            accountLocalDataSource = MemoryAccountLocalDataSource(User("user-id", emptyList())),
+            authenticatedSessionProvider = AuthenticatedSessionProvider(
+                sessionStore = MemorySessionStore("session-id"),
+                accountLocalDataSource = MemoryAccountLocalDataSource(User("user-id", emptyList())),
+            ),
             timetableApi = timetableApi,
             localDataSource = localDataSource,
             now = { Instant.fromEpochMilliseconds(1234) },

@@ -11,6 +11,7 @@ import net.twinte.mobile_experiments.core.api.ktor.rememberTwinteHttpClient
 import net.twinte.mobile_experiments.core.api.ktor.rememberTwinteLoginHttpClient
 import net.twinte.mobile_experiments.core.auth.AuthRepository
 import net.twinte.mobile_experiments.core.auth.AuthService
+import net.twinte.mobile_experiments.core.auth.AuthenticatedSessionProvider
 import net.twinte.mobile_experiments.core.auth.SessionStore
 import net.twinte.mobile_experiments.core.database.RoomAccountLocalDataSource
 import net.twinte.mobile_experiments.core.database.RoomDailyTimetableLocalDataSource
@@ -45,6 +46,10 @@ internal fun rememberAppDependencies(
         database,
     ) {
         val accountLocalDataSource = RoomAccountLocalDataSource(database.accountDao())
+        val authenticatedSessionProvider = AuthenticatedSessionProvider(
+            sessionStore = sessionStore,
+            accountLocalDataSource = accountLocalDataSource,
+        )
         AppDependencies(
             authService = AuthRepository(
                 sessionStore = sessionStore,
@@ -60,8 +65,7 @@ internal fun rememberAppDependencies(
                 accountLocalDataSource = accountLocalDataSource,
             ),
             timetableService = TimetableRepository(
-                sessionStore = sessionStore,
-                accountLocalDataSource = accountLocalDataSource,
+                authenticatedSessionProvider = authenticatedSessionProvider,
                 timetableApi = KtorTimetableApi(
                     apiBaseUrl = "$normalizedAppBaseUrl/api/v4",
                     httpClient = httpClient,
@@ -69,8 +73,7 @@ internal fun rememberAppDependencies(
                 localDataSource = RoomTimetableLocalDataSource(database.timetableDao()),
             ),
             dailyTimetableService = DailyTimetableRepository(
-                sessionStore = sessionStore,
-                accountLocalDataSource = accountLocalDataSource,
+                authenticatedSessionProvider = authenticatedSessionProvider,
                 api = KtorUnifiedApi(apiBaseUrl = "$normalizedAppBaseUrl/api/v4", httpClient = httpClient),
                 localDataSource = RoomDailyTimetableLocalDataSource(database.dailyTimetableDao()),
             ),

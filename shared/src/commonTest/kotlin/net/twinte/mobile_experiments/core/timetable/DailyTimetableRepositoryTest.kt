@@ -7,6 +7,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
 import net.twinte.mobile_experiments.core.api.DailyApiSnapshot
 import net.twinte.mobile_experiments.core.api.DailyTimetableApi
+import net.twinte.mobile_experiments.core.auth.AuthenticatedSessionProvider
 import net.twinte.mobile_experiments.core.auth.MemoryAccountLocalDataSource
 import net.twinte.mobile_experiments.core.auth.MemorySessionStore
 import net.twinte.mobile_experiments.core.auth.TwinteSession
@@ -96,8 +97,10 @@ class DailyTimetableRepositoryTest {
         localDataSource: DailyTimetableLocalDataSource,
     ): DailyTimetableRepository =
         DailyTimetableRepository(
-            sessionStore = MemorySessionStore("session-id"),
-            accountLocalDataSource = MemoryAccountLocalDataSource(User("user-id", emptyList())),
+            authenticatedSessionProvider = AuthenticatedSessionProvider(
+                sessionStore = MemorySessionStore("session-id"),
+                accountLocalDataSource = MemoryAccountLocalDataSource(User("user-id", emptyList())),
+            ),
             api = api,
             localDataSource = localDataSource,
             now = { Instant.fromEpochMilliseconds(1234) },
