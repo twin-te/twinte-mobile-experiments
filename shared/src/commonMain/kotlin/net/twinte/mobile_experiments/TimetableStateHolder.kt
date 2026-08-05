@@ -10,8 +10,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Month
+import net.twinte.mobile_experiments.core.domain.Course
 import net.twinte.mobile_experiments.core.domain.Day
 import net.twinte.mobile_experiments.core.domain.Module
+import net.twinte.mobile_experiments.core.domain.RegisteredCourse
+import net.twinte.mobile_experiments.core.domain.SearchCoursesInput
+import net.twinte.mobile_experiments.core.domain.UpdateRegisteredCourseInput
 import net.twinte.mobile_experiments.core.timetable.DailyCourseSlot
 import net.twinte.mobile_experiments.core.timetable.DailyTimetableService
 import net.twinte.mobile_experiments.core.timetable.TimetableService
@@ -26,7 +30,14 @@ internal data class TimetableUiState(
     val courseCount: Int? = null,
     val tagCount: Int? = null,
     val cells: Map<TimetableSlot, List<TimetableCourseSummary>> = emptyMap(),
+    val registeredCourses: List<RegisteredCourse> = emptyList(),
     val lastSuccessfulSyncAt: Instant? = null,
+)
+
+internal data class CourseOperationsUiState(
+    val searchResults: List<Course> = emptyList(),
+    val message: String? = null,
+    val isLoading: Boolean = false,
 )
 
 internal data class TimetableSlot(
@@ -61,6 +72,9 @@ internal class TimetableStateHolder(
     private val _timetableUiState = MutableStateFlow(TimetableUiState(selectedYear = initialYear))
     val timetableUiState: StateFlow<TimetableUiState> = _timetableUiState.asStateFlow()
 
+    private val _courseOperationsUiState = MutableStateFlow(CourseOperationsUiState())
+    val courseOperationsUiState: StateFlow<CourseOperationsUiState> = _courseOperationsUiState.asStateFlow()
+
     private val _dailyTimetableUiState = MutableStateFlow(DailyTimetableUiState(date = initialDate))
     val dailyTimetableUiState: StateFlow<DailyTimetableUiState> = _dailyTimetableUiState.asStateFlow()
 
@@ -70,6 +84,7 @@ internal class TimetableStateHolder(
     private var dailyObservation: Job? = null
     private var timetableRefresh: Job? = null
     private var dailyRefresh: Job? = null
+    private var courseOperation: Job? = null
     private var timetableSnapshot = TimetableSnapshot()
 
     fun bind(accountId: String?, date: LocalDate) {
@@ -81,11 +96,13 @@ internal class TimetableStateHolder(
         if (accountChanged) {
             timetableObservation?.cancel()
             timetableRefresh?.cancel()
+            courseOperation?.cancel()
             timetableSnapshot = TimetableSnapshot()
             _timetableUiState.value = TimetableUiState(
                 selectedYear = _timetableUiState.value.selectedYear,
                 selectedModule = _timetableUiState.value.selectedModule,
             )
+            _courseOperationsUiState.value = CourseOperationsUiState()
             timetableObservation = accountId?.let(::observeTimetable)
         }
         if (accountChanged || dateChanged) {
@@ -129,6 +146,55 @@ internal class TimetableStateHolder(
             )
             if (succeeded) {
                 _timetableUiState.update { it.copy(isLoading = false) }
+            }
+        }
+    }
+
+    fun searchCourses(query: String) {
+        val year = _timetableUiState.value.selectedYear
+        launchCourseOperation("Searching courses...") {
+            val keywords = query.trim()
+                .split(Regex("\\s+"))
+                .filter(String::isNotBlank)
+            val results = timetableService.searchCourses(
+                SearchCoursesInput(
+                    year = year,
+                    keywords = keywords,
+                ),
+            )
+            _courseOperationsUiState.value = CourseOperationsUiState(
+                searchResults = results,
+                message = if (results.isEmpty()) "No courses found" else "${results.size} courses found",
+            )
+        }
+    }
+
+    fun registerCourse(course: Course) {
+        val accountId = accountId ?: return
+        launchCourseOperation("Registering ${course.name}...") {
+            timetableService.createCoursesByCodes(accountId, course.year, listOf(course.code))
+            _courseOperationsUiState.update {
+                it.copy(message = "Registered ${course.name}", isLoading = false)
+            }
+        }
+    }
+
+    fun updateCourse(input: UpdateRegisteredCourseInput) {
+        val accountId = accountId ?: return
+        launchCourseOperation("Updating course...") {
+            val course = timetableService.updateCourse(accountId, input)
+            _courseOperationsUiState.update {
+                it.copy(message = "Updated ${course.name}", isLoading = false)
+            }
+        }
+    }
+
+    fun deleteCourse(course: RegisteredCourse) {
+        val accountId = accountId ?: return
+        launchCourseOperation("Deleting ${course.name}...") {
+            timetableService.deleteCourse(accountId, course.id)
+            _courseOperationsUiState.update {
+                it.copy(message = "Deleted ${course.name}", isLoading = false)
             }
         }
     }
@@ -205,8 +271,29 @@ internal class TimetableStateHolder(
             false
         }
 
+    private fun launchCourseOperation(
+        loadingMessage: String,
+        operation: suspend () -> Unit,
+    ) {
+        if (_courseOperationsUiState.value.isLoading) return
+        _courseOperationsUiState.update { it.copy(message = loadingMessage, isLoading = true) }
+        courseOperation = scope.launch {
+            try {
+                operation()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                onFailure(error)
+                _courseOperationsUiState.update {
+                    it.copy(message = "Operation failed", isLoading = false)
+                }
+            }
+        }
+    }
+
     private fun selectYear(year: Int) {
         val current = _timetableUiState.value
+        _courseOperationsUiState.value = CourseOperationsUiState()
         _timetableUiState.value = timetableSnapshot.toUiState(
             selectedYear = year,
             selectedModule = current.selectedModule,
@@ -244,6 +331,7 @@ private fun TimetableSnapshot.toUiState(
         courseCount = selectedCourses.size,
         tagCount = tags.size,
         cells = cells,
+        registeredCourses = selectedCourses,
         lastSuccessfulSyncAt = lastSuccessfulSyncAt,
     )
 }

@@ -10,8 +10,12 @@ import net.twinte.mobile_experiments.core.auth.MemoryAccountLocalDataSource
 import net.twinte.mobile_experiments.core.auth.MemorySessionStore
 import net.twinte.mobile_experiments.core.auth.TwinteSession
 import net.twinte.mobile_experiments.core.domain.RegisteredCourse
+import net.twinte.mobile_experiments.core.domain.CreateRegisteredCourseInput
+import net.twinte.mobile_experiments.core.domain.Course
+import net.twinte.mobile_experiments.core.domain.SearchCoursesInput
 import net.twinte.mobile_experiments.core.domain.Tag
 import net.twinte.mobile_experiments.core.domain.User
+import net.twinte.mobile_experiments.core.domain.UpdateRegisteredCourseInput
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -88,6 +92,81 @@ class TimetableRepositoryTest {
         assertNull(accountStore.getActiveUser())
     }
 
+    @Test
+    fun successfulMutationsUpdateCachedCoursesAndTags() = runTest {
+        val originalCourse = course("course-id")
+        val updatedCourse = originalCourse.copy(name = "Updated")
+        val originalTag = Tag("tag-id", "Original", 0)
+        val updatedTag = originalTag.copy(name = "Updated")
+        val localDataSource = FakeTimetableLocalDataSource(
+            TimetableSnapshot(
+                courses = listOf(originalCourse),
+                tags = listOf(originalTag),
+                lastSuccessfulSyncAt = Instant.fromEpochMilliseconds(1000),
+            ),
+        )
+        val repository = repository(
+            timetableApi = FakeTimetableApi(
+                updateRegisteredCourseResult = Result.success(updatedCourse),
+                updateTagResult = Result.success(updatedTag),
+            ),
+            localDataSource = localDataSource,
+        )
+
+        repository.updateCourse("user-id", UpdateRegisteredCourseInput("course-id", name = "Updated"))
+        repository.updateTag("user-id", "tag-id", "Updated")
+
+        assertEquals(
+            TimetableSnapshot(
+                courses = listOf(updatedCourse),
+                tags = listOf(updatedTag),
+                lastSuccessfulSyncAt = Instant.fromEpochMilliseconds(1000),
+            ),
+            repository.observeTimetable("user-id").first(),
+        )
+    }
+
+    @Test
+    fun failedMutationDoesNotChangeCache() = runTest {
+        val cached = TimetableSnapshot(courses = listOf(course("course-id")))
+        val localDataSource = FakeTimetableLocalDataSource(cached)
+        val repository = repository(
+            timetableApi = FakeTimetableApi(
+                updateRegisteredCourseResult = Result.failure(TwinteApiException(500, "failed")),
+            ),
+            localDataSource = localDataSource,
+        )
+
+        assertFailsWith<TwinteApiException> {
+            repository.updateCourse("user-id", UpdateRegisteredCourseInput("course-id", name = "Updated"))
+        }
+
+        assertEquals(cached, repository.observeTimetable("user-id").first())
+    }
+
+    @Test
+    fun successfulDeletesRemoveCachedCourseAndTagRelations() = runTest {
+        val localDataSource = FakeTimetableLocalDataSource(
+            TimetableSnapshot(
+                courses = listOf(course("course-id").copy(tagIds = listOf("tag-id"))),
+                tags = listOf(Tag("tag-id", "Required", 0)),
+            ),
+        )
+        val repository = repository(
+            timetableApi = FakeTimetableApi(
+                deleteRegisteredCourseResult = Result.success(Unit),
+                deleteTagResult = Result.success(Unit),
+            ),
+            localDataSource = localDataSource,
+        )
+
+        repository.deleteTag("user-id", "tag-id")
+        assertEquals(emptyList(), repository.observeTimetable("user-id").first().courses.single().tagIds)
+
+        repository.deleteCourse("user-id", "course-id")
+        assertEquals(emptyList(), repository.observeTimetable("user-id").first().courses)
+    }
+
     private fun repository(
         timetableApi: TimetableApi,
         localDataSource: TimetableLocalDataSource,
@@ -101,14 +180,59 @@ class TimetableRepositoryTest {
         )
 
     private class FakeTimetableApi(
+        private val searchCoursesResult: Result<List<Course>> = Result.success(emptyList()),
         private val listRegisteredCoursesResult: Result<List<RegisteredCourse>> = Result.success(emptyList()),
         private val listTagsResult: Result<List<Tag>> = Result.success(emptyList()),
+        private val createRegisteredCoursesByCodesResult: Result<List<RegisteredCourse>> = unusedResult(),
+        private val createRegisteredCourseManuallyResult: Result<RegisteredCourse> = unusedResult(),
+        private val updateRegisteredCourseResult: Result<RegisteredCourse> = unusedResult(),
+        private val deleteRegisteredCourseResult: Result<Unit> = unusedResult(),
+        private val createTagResult: Result<Tag> = unusedResult(),
+        private val updateTagResult: Result<Tag> = unusedResult(),
+        private val deleteTagResult: Result<Unit> = unusedResult(),
+        private val rearrangeTagsResult: Result<List<Tag>> = unusedResult(),
     ) : TimetableApi {
+        override suspend fun searchCourses(input: SearchCoursesInput): List<Course> =
+            searchCoursesResult.getOrThrow()
+
         override suspend fun listRegisteredCourses(session: TwinteSession, year: Int?): List<RegisteredCourse> =
             listRegisteredCoursesResult.getOrThrow()
 
         override suspend fun listTags(session: TwinteSession): List<Tag> =
             listTagsResult.getOrThrow()
+
+        override suspend fun createRegisteredCoursesByCodes(
+            session: TwinteSession,
+            year: Int,
+            codes: List<String>,
+        ): List<RegisteredCourse> = createRegisteredCoursesByCodesResult.getOrThrow()
+
+        override suspend fun createRegisteredCourseManually(
+            session: TwinteSession,
+            input: CreateRegisteredCourseInput,
+        ): RegisteredCourse = createRegisteredCourseManuallyResult.getOrThrow()
+
+        override suspend fun updateRegisteredCourse(
+            session: TwinteSession,
+            input: UpdateRegisteredCourseInput,
+        ): RegisteredCourse = updateRegisteredCourseResult.getOrThrow()
+
+        override suspend fun deleteRegisteredCourse(session: TwinteSession, id: String) {
+            deleteRegisteredCourseResult.getOrThrow()
+        }
+
+        override suspend fun createTag(session: TwinteSession, name: String): Tag =
+            createTagResult.getOrThrow()
+
+        override suspend fun updateTag(session: TwinteSession, id: String, name: String): Tag =
+            updateTagResult.getOrThrow()
+
+        override suspend fun deleteTag(session: TwinteSession, id: String) {
+            deleteTagResult.getOrThrow()
+        }
+
+        override suspend fun rearrangeTags(session: TwinteSession, ids: List<String>): List<Tag> =
+            rearrangeTagsResult.getOrThrow()
     }
 
     private class FakeTimetableLocalDataSource(
@@ -131,8 +255,37 @@ class TimetableRepositoryTest {
             replaceCount += 1
             snapshots.value = TimetableSnapshot(courses, tags, syncedAt)
         }
+
+        override suspend fun upsertCourses(accountId: String, courses: List<RegisteredCourse>) {
+            val ids = courses.mapTo(mutableSetOf()) { it.id }
+            snapshots.value = snapshots.value.copy(
+                courses = snapshots.value.courses.filterNot { it.id in ids } + courses,
+            )
+        }
+
+        override suspend fun deleteCourse(accountId: String, id: String) {
+            snapshots.value = snapshots.value.copy(
+                courses = snapshots.value.courses.filterNot { it.id == id },
+            )
+        }
+
+        override suspend fun upsertTags(accountId: String, tags: List<Tag>) {
+            val ids = tags.mapTo(mutableSetOf()) { it.id }
+            snapshots.value = snapshots.value.copy(
+                tags = snapshots.value.tags.filterNot { it.id in ids } + tags,
+            )
+        }
+
+        override suspend fun deleteTag(accountId: String, id: String) {
+            snapshots.value = snapshots.value.copy(
+                courses = snapshots.value.courses.map { it.copy(tagIds = it.tagIds - id) },
+                tags = snapshots.value.tags.filterNot { it.id == id },
+            )
+        }
     }
 }
+
+private fun <T> unusedResult(): Result<T> = Result.failure(IllegalStateException("Unused in this test"))
 
 private fun course(id: String): RegisteredCourse =
     RegisteredCourse(

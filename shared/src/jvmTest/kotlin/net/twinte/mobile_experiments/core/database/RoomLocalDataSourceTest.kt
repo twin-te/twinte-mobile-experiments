@@ -185,4 +185,60 @@ class RoomLocalDataSourceTest {
 
         assertNull(dailyDataSource.observe(user.id, date).first())
     }
+
+    @Test
+    fun timetableMutationsOnlyChangeTargetedCachedRecords() = runTest {
+        val accountDataSource = RoomAccountLocalDataSource(database.accountDao())
+        val timetableDataSource = RoomTimetableLocalDataSource(database.timetableDao())
+        val user = User("user-id", emptyList())
+        val first = RegisteredCourse(
+            id = "first",
+            year = 2026,
+            name = "First",
+            instructors = "Teacher",
+            credit = "1.0",
+            methods = listOf(CourseMethod.FaceToFace),
+            schedules = listOf(CourseSchedule(Module.SpringA, Day.Monday, 1, "Room A")),
+            tagIds = listOf("first-tag"),
+        )
+        val second = first.copy(id = "second", name = "Second", tagIds = listOf("second-tag"))
+        accountDataSource.saveActiveUser(user)
+        timetableDataSource.replaceSnapshot(
+            accountId = user.id,
+            year = null,
+            courses = listOf(first, second),
+            tags = listOf(Tag("first-tag", "First tag", 0), Tag("second-tag", "Second tag", 1)),
+            syncedAt = Instant.fromEpochMilliseconds(1234),
+        )
+
+        val updatedFirst = first.copy(
+            name = "Updated first",
+            methods = emptyList(),
+            schedules = emptyList(),
+            tagIds = listOf("second-tag"),
+        )
+        timetableDataSource.upsertCourses(user.id, listOf(updatedFirst))
+
+        assertEquals(
+            mapOf(updatedFirst.id to updatedFirst, second.id to second),
+            timetableDataSource.observeSnapshot(user.id).first().courses.associateBy { it.id },
+        )
+
+        timetableDataSource.upsertTags(user.id, listOf(Tag("second-tag", "Updated tag", 0)))
+        assertEquals(
+            "Updated tag",
+            timetableDataSource.observeSnapshot(user.id).first().tags.single { it.id == "second-tag" }.name,
+        )
+
+        timetableDataSource.deleteTag(user.id, "second-tag")
+        val afterTagDelete = timetableDataSource.observeSnapshot(user.id).first()
+        assertEquals(emptyList(), afterTagDelete.courses.single { it.id == "first" }.tagIds)
+        assertEquals(emptyList(), afterTagDelete.courses.single { it.id == "second" }.tagIds)
+
+        timetableDataSource.deleteCourse(user.id, "first")
+        assertEquals(
+            listOf(second.copy(tagIds = emptyList())),
+            timetableDataSource.observeSnapshot(user.id).first().courses,
+        )
+    }
 }

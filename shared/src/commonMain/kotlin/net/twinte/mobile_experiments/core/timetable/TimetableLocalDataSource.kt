@@ -15,4 +15,12 @@ interface TimetableLocalDataSource {
         tags: List<Tag>,
         syncedAt: Instant,
     )
+
+    suspend fun upsertCourses(accountId: String, courses: List<RegisteredCourse>)
+
+    suspend fun deleteCourse(accountId: String, id: String)
+
+    suspend fun upsertTags(accountId: String, tags: List<Tag>)
+
+    suspend fun deleteTag(accountId: String, id: String)
 }

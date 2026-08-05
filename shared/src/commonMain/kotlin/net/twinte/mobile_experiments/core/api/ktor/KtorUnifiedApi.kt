@@ -38,7 +38,7 @@ class KtorUnifiedApi(
     )
 
     override suspend fun getByDate(session: TwinteSession, date: LocalDate): DailyApiSnapshot {
-        val body = connectTransport.post(
+        val body = connectTransport.postAuthenticated(
             service = "unified.v1.UnifiedService",
             method = "GetByDate",
             session = session,

@@ -68,6 +68,12 @@ abstract class TimetableDao {
     @Query("DELETE FROM tag WHERE accountId = :accountId AND id NOT IN (:retainedTagIds)")
     protected abstract suspend fun deleteTagsNotIn(accountId: String, retainedTagIds: List<String>)
 
+    @Query("DELETE FROM registered_course WHERE accountId = :accountId AND id = :courseId")
+    abstract suspend fun deleteCourse(accountId: String, courseId: String)
+
+    @Query("DELETE FROM tag WHERE accountId = :accountId AND id = :tagId")
+    abstract suspend fun deleteTag(accountId: String, tagId: String)
+
     @Upsert
     protected abstract suspend fun insertCourses(courses: List<RegisteredCourseEntity>)
 
@@ -85,6 +91,30 @@ abstract class TimetableDao {
 
     @Upsert
     protected abstract suspend fun saveSyncMetadata(metadata: SyncMetadataEntity)
+
+    @Transaction
+    open suspend fun upsertCourses(
+        accountId: String,
+        courses: List<RegisteredCourseEntity>,
+        methods: List<CourseMethodEntity>,
+        schedules: List<CourseScheduleEntity>,
+        courseTags: List<RegisteredCourseTagEntity>,
+    ) {
+        val courseIds = courses.map { it.id }
+        if (courseIds.isEmpty()) return
+
+        deleteMethods(accountId, courseIds)
+        deleteSchedules(accountId, courseIds)
+        deleteCourseTags(accountId, courseIds)
+        insertCourses(courses)
+        if (methods.isNotEmpty()) insertMethods(methods)
+        if (schedules.isNotEmpty()) insertSchedules(schedules)
+        if (courseTags.isNotEmpty()) insertCourseTags(courseTags)
+    }
+
+    suspend fun upsertTags(tags: List<TagEntity>) {
+        if (tags.isNotEmpty()) insertTags(tags)
+    }
 
     @Transaction
     open suspend fun replaceSnapshot(
