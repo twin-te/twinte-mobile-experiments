@@ -12,7 +12,7 @@ internal val timetableDays = listOf(Day.Monday, Day.Tuesday, Day.Wednesday, Day.
 internal data class SpecialCourseItem(
     val id: String,
     val name: String,
-    val modules: String,
+    val moduleLabels: List<String>,
     val locations: String,
 )
 
@@ -25,7 +25,7 @@ internal fun specialCourseGroups(courses: List<RegisteredCourse>): List<SpecialC
             val schedules = course.schedules.filter { it.day == day }
             if (schedules.isEmpty()) null else SpecialCourseItem(
                 course.id, course.name,
-                schedules.map { it.module.label }.distinct().joinToString("・"),
+                specialCourseModuleLabels(schedules.map { it.module }),
                 schedules.map { it.locations }.filter(String::isNotBlank).distinct().joinToString(" / "),
             )
         })
@@ -37,9 +37,19 @@ internal fun specialCourseGroups(courses: List<RegisteredCourse>): List<SpecialC
         }
         if (schedules.isEmpty() && course.schedules.isNotEmpty()) null else SpecialCourseItem(
             course.id, course.name,
-            schedules.map { it.module.label }.distinct().joinToString("・"),
+            specialCourseModuleLabels(schedules.map { it.module }),
             schedules.map { it.locations }.filter(String::isNotBlank).distinct().joinToString(" / "),
         )
     }
     return if (others.isEmpty()) groups else groups + SpecialCourseGroup("その他", others)
+}
+
+private fun specialCourseModuleLabels(modules: List<Module>): List<String> = buildList {
+    val spring = listOf(Module.SpringA, Module.SpringB, Module.SpringC).filter { it in modules }
+    val fall = listOf(Module.FallA, Module.FallB, Module.FallC).filter { it in modules }
+    if (spring.isNotEmpty()) add("春" + spring.joinToString("") { it.label.removePrefix("春") })
+    if (Module.SummerVacation in modules) add(Module.SummerVacation.label)
+    if (fall.isNotEmpty()) add("秋" + fall.joinToString("") { it.label.removePrefix("秋") })
+    if (Module.WinterVacation in modules) add(Module.WinterVacation.label)
+    if (Module.SpringVacation in modules) add(Module.SpringVacation.label)
 }

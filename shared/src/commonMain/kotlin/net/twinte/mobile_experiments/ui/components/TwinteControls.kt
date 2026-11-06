@@ -7,6 +7,8 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -35,10 +37,23 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import net.twinte.mobile_experiments.ui.theme.TwinteTheme
+
+@Composable
+internal fun Modifier.twinteBaseSurface(shape: Shape): Modifier {
+    val colors = TwinteTheme.colors
+    // Web's $shadow-base has a narrow highlight, unlike the raised button shadow.
+    return dropShadow(shape, Shadow(2.dp, colors.shadowLight, offset = DpOffset((-1).dp, (-1).dp)))
+        .dropShadow(shape, Shadow(10.dp, colors.shadowDark, offset = DpOffset(2.dp, 4.dp)))
+        .background(colors.surface, shape)
+        .innerShadow(shape, Shadow(12.dp, colors.insetLight, offset = DpOffset((-6).dp, (-8).dp)))
+        .innerShadow(shape, Shadow(4.dp, colors.insetDark, offset = DpOffset(2.dp, 3.dp)))
+}
 
 @Composable
 internal fun Modifier.twinteRaised(shape: Shape): Modifier {
@@ -52,6 +67,13 @@ internal fun Modifier.twinteInset(shape: Shape): Modifier {
     val colors = TwinteTheme.colors
     return innerShadow(shape, Shadow(7.dp, colors.insetDark, offset = DpOffset(2.dp, 3.dp)))
         .innerShadow(shape, Shadow(7.dp, colors.insetLight, offset = DpOffset((-2).dp, (-3).dp)))
+}
+
+@Composable
+internal fun Modifier.twinteInputInset(shape: Shape): Modifier {
+    val colors = TwinteTheme.colors
+    return innerShadow(shape, Shadow(4.dp, colors.inputInsetDark, offset = DpOffset(1.dp, 1.dp)))
+        .innerShadow(shape, Shadow(3.dp, colors.inputInsetLight, offset = DpOffset((-2).dp, (-2).dp)))
 }
 
 @Composable
@@ -103,6 +125,7 @@ internal fun TwinteIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    diameter: Dp = 36.dp,
 ) {
     val colors = TwinteTheme.colors
     val shape = RoundedCornerShape(50)
@@ -119,14 +142,14 @@ internal fun TwinteIconButton(
             contentAlignment = Alignment.Center,
         ) {
             Box(
-                modifier = Modifier.size(36.dp)
+                modifier = Modifier.size(diameter)
                     .then(if (pressed) Modifier else Modifier.twinteRaised(shape))
                     .background(colors.background, shape)
                     .then(if (pressed) Modifier.twinteInset(shape) else Modifier),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    image, contentDescription = null, modifier = Modifier.size(20.dp),
+                    image, contentDescription = null, modifier = Modifier.size(diameter * (5f / 9f)),
                     tint = if (enabled) colors.muted else colors.muted.copy(alpha = 0.5f),
                 )
             }
@@ -143,25 +166,41 @@ internal fun TwinteSegmentedControl(
 ) {
     val colors = TwinteTheme.colors
     val shape = RoundedCornerShape(50)
-    Row(
-        modifier = modifier.height(40.dp).twinteRaised(shape)
-            .background(colors.background, shape).twinteInset(shape).selectableGroup(),
-        verticalAlignment = Alignment.CenterVertically,
+    Box(
+        modifier = modifier.height(48.dp).selectableGroup(),
+        contentAlignment = Alignment.Center,
     ) {
-        labels.forEachIndexed { index, label ->
-            val isSelected = index == selectedIndex
-            Box(
-                modifier = Modifier.weight(1f).height(40.dp)
-                    .selectable(isSelected, role = Role.RadioButton, onClick = { onSelect(index) })
-                    .padding(3.dp)
-                    .then(if (isSelected) Modifier.background(colors.accentFill, shape) else Modifier),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    label,
-                    fontSize = 12.sp,
-                    color = if (isSelected) colors.onAccent else colors.muted,
-                )
+        Box(
+            Modifier.fillMaxWidth().height(28.dp).twinteRaised(shape)
+                .background(colors.background, shape).twinteInputInset(shape),
+        )
+        Row(Modifier.matchParentSize()) {
+            labels.forEachIndexed { index, label ->
+                val isSelected = index == selectedIndex
+                val interaction = remember { MutableInteractionSource() }
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxHeight()
+                        .selectable(
+                            selected = isSelected, interactionSource = interaction, indication = null,
+                            role = Role.RadioButton, onClick = { onSelect(index) },
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp).height(24.dp)
+                            .then(
+                                if (isSelected) Modifier.dropShadow(
+                                    shape, Shadow(3.dp, colors.shadowDark, offset = DpOffset(2.dp, 2.dp)),
+                                ).background(colors.accentFill, shape) else Modifier,
+                            ),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            label, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium,
+                            color = if (isSelected) colors.onAccent else colors.muted,
+                        )
+                    }
+                }
             }
         }
     }

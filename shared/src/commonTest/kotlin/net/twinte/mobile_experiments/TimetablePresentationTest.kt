@@ -18,8 +18,25 @@ class TimetablePresentationTest {
         ))
         val group = specialCourseGroups(listOf(course)).first { it.label == "集中" }
         assertEquals(listOf("intensive"), group.courses.map { it.id })
-        assertEquals("夏休み・秋A", group.courses.single().modules)
+        assertEquals(listOf("夏休み", "秋A"), group.courses.single().moduleLabels)
         assertEquals("3A204", group.courses.single().locations)
+    }
+
+    @Test
+    fun specialCourseModulesAreGroupedBySeasonWithoutLosingVacations() {
+        val course = course("intensive").copy(schedules = listOf(
+            CourseSchedule(Module.FallC, Day.Intensive, 0, ""),
+            CourseSchedule(Module.SpringB, Day.Intensive, 0, ""),
+            CourseSchedule(Module.SpringA, Day.Intensive, 0, ""),
+            CourseSchedule(Module.SpringA, Day.Intensive, 0, ""),
+            CourseSchedule(Module.WinterVacation, Day.Intensive, 0, ""),
+            CourseSchedule(Module.SummerVacation, Day.Intensive, 0, ""),
+            CourseSchedule(Module.SpringVacation, Day.Intensive, 0, ""),
+        ))
+        assertEquals(
+            listOf("春AB", "夏休み", "秋C", "冬休み", "春休み"),
+            specialCourseGroups(listOf(course)).first().courses.single().moduleLabels,
+        )
     }
 
     @Test

@@ -8,20 +8,22 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenuPopup
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -32,6 +34,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -41,6 +44,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.ChevronDown
@@ -51,8 +55,11 @@ import net.twinte.mobile_experiments.TimetableUiState
 import net.twinte.mobile_experiments.core.domain.Module
 import net.twinte.mobile_experiments.core.timetable.PeriodTimes
 import net.twinte.mobile_experiments.ui.components.TwinteButton
+import net.twinte.mobile_experiments.ui.components.TwinteIconButton
 import net.twinte.mobile_experiments.ui.components.TwinteSegmentedControl
+import net.twinte.mobile_experiments.ui.components.twinteBaseSurface
 import net.twinte.mobile_experiments.ui.components.twinteInset
+import net.twinte.mobile_experiments.ui.components.twinteInputInset
 import net.twinte.mobile_experiments.ui.components.twinteRaised
 import net.twinte.mobile_experiments.ui.theme.TwinteTheme
 
@@ -69,37 +76,51 @@ internal fun TimetableScreen(
 ) {
     val colors = TwinteTheme.colors
     var special by rememberSaveable { mutableStateOf(false) }
+    var moduleMenuExpanded by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
     PullToRefreshBox(
         isRefreshing = uiState.isLoading,
         onRefresh = onRefresh,
         modifier = Modifier.fillMaxSize(),
     ) {
+        // Keep inset shadows below the controls and course tiles.
+        Box(Modifier.matchParentSize().twinteBaseSurface(shape).testTag("timetable-frame"))
         Column(
-            modifier = Modifier.fillMaxSize().twinteRaised(shape)
-                .background(colors.surface, shape).twinteInset(shape)
-                .padding(horizontal = 12.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.fillMaxSize()
+                .padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                TwinteSegmentedControl(
-                    labels = listOf("通常", "特殊"),
-                    selectedIndex = if (special) 1 else 0,
-                    onSelect = { special = it == 1 },
-                    modifier = Modifier.width(112.dp),
-                )
-                if (!special) {
-                    ModuleSelector(uiState.selectedModule, onSelectModule, Modifier.weight(1f))
-                    TwinteButton(
-                        "現在の学期", onClick = onCurrentModule,
-                        enabled = currentModule in timetableModules,
-                        selected = currentModule == uiState.selectedModule && currentYear == uiState.selectedYear,
-                        modifier = Modifier.width(112.dp),
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val compact = maxWidth < 336.dp
+                Row(
+                    Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(if (compact) 4.dp else 8.dp),
+                ) {
+                    TwinteSegmentedControl(
+                        labels = listOf("通常", "特殊"),
+                        selectedIndex = if (special) 1 else 0,
+                        onSelect = {
+                            special = it == 1
+                            moduleMenuExpanded = false
+                        },
+                        modifier = Modifier.width(if (compact) 104.dp else 120.dp),
                     )
+                    if (!special) {
+                        ModuleSelector(
+                            selected = uiState.selectedModule,
+                            onSelect = onSelectModule,
+                            expanded = moduleMenuExpanded,
+                            onExpandedChange = { moduleMenuExpanded = it },
+                            modifier = Modifier.weight(1f),
+                        )
+                        TwinteButton(
+                            "現在の学期", onClick = onCurrentModule,
+                            enabled = currentModule in timetableModules,
+                            selected = currentModule == uiState.selectedModule && currentYear == uiState.selectedYear,
+                            modifier = Modifier.width(104.dp),
+                        )
+                    }
                 }
             }
             if (uiState.refreshFailed) {
@@ -121,48 +142,65 @@ internal fun TimetableScreen(
                     modifier = Modifier.weight(1f),
                 )
             } else {
-                TimetableGrid(uiState, onOpenCourses, Modifier.weight(1f))
+                TimetableGrid(
+                    uiState, onOpenCourses,
+                    Modifier.weight(1f).alpha(if (moduleMenuExpanded) 0.2f else 1f),
+                )
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ModuleSelector(
     selected: Module,
     onSelect: (Module) -> Unit,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var expanded by remember { mutableStateOf(false) }
     val colors = TwinteTheme.colors
-    Box(modifier) {
-        Row(
-            Modifier.fillMaxWidth().height(48.dp)
-                .semantics { contentDescription = "学期を選択" }
-                .clickable(role = Role.Button, onClick = { expanded = true }),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            Text(
-                selected.label, color = colors.text, fontSize = 16.sp,
-                fontWeight = FontWeight.Medium, maxLines = 1,
-                modifier = Modifier.weight(1f, fill = false), overflow = TextOverflow.Ellipsis,
-            )
-            Icon(
-                Lucide.ChevronDown, null, tint = colors.muted,
-                modifier = Modifier.padding(start = 4.dp).width(16.dp),
-            )
-        }
-        DropdownMenu(expanded, onDismissRequest = { expanded = false }) {
-            timetableModules.forEach { module ->
-                DropdownMenuItem(
-                    text = { Text(module.label, color = colors.text) },
-                    modifier = Modifier.semantics { this.selected = module == selected },
-                    onClick = {
-                        expanded = false
-                        onSelect(module)
-                    },
+    val shape = RoundedCornerShape(8.dp)
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Box {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    selected.label, color = colors.text, fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium, maxLines = 1,
                 )
+                TwinteIconButton(
+                    "学期を選択", Lucide.ChevronDown, onClick = { onExpandedChange(!expanded) },
+                    diameter = 28.dp,
+                )
+            }
+            DropdownMenuPopup(
+                expanded, onDismissRequest = { onExpandedChange(false) },
+                // Leave room for both shadows without changing the visible anchor position.
+                modifier = Modifier.padding(12.dp),
+                offset = DpOffset((-12).dp, (-12).dp),
+            ) {
+                Column(
+                    Modifier.width(88.dp).twinteRaised(shape).background(colors.surface, shape)
+                        .padding(vertical = 8.dp).verticalScroll(rememberScrollState()).testTag("module-menu"),
+                ) {
+                    timetableModules.forEach { module ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    module.label, color = if (module == selected) colors.accentText else colors.muted,
+                                    fontSize = 16.sp, lineHeight = 23.sp,
+                                )
+                            },
+                            contentPadding = PaddingValues(horizontal = 16.dp),
+                            modifier = Modifier.height(48.dp).semantics { this.selected = module == selected },
+                            onClick = {
+                                onExpandedChange(false)
+                                onSelect(module)
+                            },
+                        )
+                    }
+                }
             }
         }
     }
@@ -177,18 +215,26 @@ private fun TimetableGrid(
     val colors = TwinteTheme.colors
     val fontScale = LocalDensity.current.fontScale
     BoxWithConstraints(modifier.fillMaxWidth()) {
-        val labelWidth = (32 * fontScale).dp
-        val headingHeight = (22 * fontScale).dp
+        val labelWidth = (36 * fontScale).dp
+        val headingHeight = (20 * fontScale).dp
         val rowHeight = maxOf((80 * fontScale).dp, (maxHeight - headingHeight - 12.dp) / 6)
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).testTag("timetable-grid"),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Row(Modifier.fillMaxWidth().height(headingHeight), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = headingHeight),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Box(Modifier.width(labelWidth))
                 timetableDays.forEach { day ->
-                    Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-                        Text(day.label.removeSuffix("曜"), color = colors.muted, fontSize = 12.sp)
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        Text(
+                            day.label.removeSuffix("曜"), color = colors.muted,
+                            fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1,
+                            modifier = Modifier.padding(vertical = 2.dp).testTag("weekday-${day.name}"),
+                        )
                     }
                 }
             }
@@ -209,7 +255,7 @@ private fun TimetableGrid(
                         )
                         Text(
                             "${period.start}\n~\n${period.end}",
-                            color = colors.muted, fontSize = 9.sp, lineHeight = 14.sp, textAlign = TextAlign.Center,
+                            color = colors.muted, fontSize = 10.sp, lineHeight = 14.sp, textAlign = TextAlign.Center,
                         )
                     }
                     timetableDays.forEach { day ->
@@ -287,25 +333,48 @@ private fun SpecialTimetable(
     modifier: Modifier = Modifier,
 ) {
     val colors = TwinteTheme.colors
+    val fontScale = LocalDensity.current.fontScale
     Column(
         modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        verticalArrangement = Arrangement.spacedBy(32.dp),
     ) {
         groups.forEach { group ->
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(group.label, color = colors.text, fontSize = 14.sp)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(
+                    Modifier.fillMaxWidth().padding(bottom = 14.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(group.label, color = colors.text, fontSize = 14.sp, lineHeight = 20.sp)
+                    val shape = RoundedCornerShape(2.dp)
+                    Box(
+                        Modifier.weight(1f).height(4.dp)
+                            .background(colors.background, shape).twinteInputInset(shape),
+                    )
+                }
                 if (group.courses.isEmpty()) {
-                    Text("登録なし", color = colors.muted, fontSize = 12.sp)
+                    Row(Modifier.fillMaxWidth().height((48 * fontScale).dp)) {
+                        Box(Modifier.width((48 * fontScale + 2).dp))
+                        TimetableCourseTile(
+                            courses = emptyList(), onClick = {},
+                            modifier = Modifier.weight(1f).fillMaxHeight()
+                                .semantics { contentDescription = "${group.label}の授業なし" }
+                                .testTag("special-empty-${group.label}"),
+                        )
+                    }
                 }
                 group.courses.forEach { course ->
                     Row(
-                        Modifier.fillMaxWidth().height(72.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                        Modifier.fillMaxWidth().height(
+                            maxOf((48 * fontScale).dp, (course.moduleLabels.size * 17 * fontScale + 10).dp),
+                        ),
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        verticalAlignment = Alignment.Top,
                     ) {
                         Text(
-                            course.modules, color = colors.muted, fontSize = 11.sp,
-                            maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(48.dp),
+                            course.moduleLabels.joinToString("\n"), color = colors.muted,
+                            fontSize = 12.sp, lineHeight = 17.sp,
+                            modifier = Modifier.width((48 * fontScale).dp).padding(start = 4.dp),
                         )
                         TimetableCourseTile(
                             listOf(TimetableCourseSummary(course.name, course.locations, course.id)),
