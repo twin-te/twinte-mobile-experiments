@@ -257,6 +257,85 @@ class TimetableStateHolderTest {
     }
 
     @Test
+    fun attendanceChangesSendOnlyOneCounterAndRefreshDailySchedule() = runTest {
+        val date = LocalDate(2026, 5, 1)
+        val course = course(
+            year = 2026,
+            name = "Seminar",
+            schedule = CourseSchedule(Module.SpringA, Day.Monday, 1, "3A204"),
+        ).copy(attendance = 2, absence = 1)
+        val timetableService = FakeTimetableService(
+            initialSnapshot = TimetableSnapshot(courses = listOf(course)),
+        )
+        val dailyService = FakeDailyTimetableService()
+        val stateHolder = TimetableStateHolder(
+            timetableService = timetableService,
+            dailyTimetableService = dailyService,
+            initialDate = date,
+            scope = backgroundScope,
+            onFailure = {},
+        )
+        stateHolder.bind("user-id", date)
+        runCurrent()
+
+        stateHolder.changeCourseAttendance(course.id, AttendanceCounter.Attendance, -1)
+        runCurrent()
+        timetableService.emitSnapshot(TimetableSnapshot(courses = listOf(course.copy(attendance = 1))))
+        runCurrent()
+        stateHolder.changeCourseAttendance(course.id, AttendanceCounter.Attendance, -1)
+        runCurrent()
+        stateHolder.changeCourseAttendance(course.id, AttendanceCounter.Absence, 1)
+        runCurrent()
+        stateHolder.changeCourseAttendance(course.id, AttendanceCounter.Late, 1)
+        runCurrent()
+
+        assertEquals(1, timetableService.updatedInputs[0].attendance)
+        assertEquals(null, timetableService.updatedInputs[0].absence)
+        assertEquals(0, timetableService.updatedInputs[1].attendance)
+        assertEquals(2, timetableService.updatedInputs[2].absence)
+        assertEquals(null, timetableService.updatedInputs[2].attendance)
+        assertEquals(1, timetableService.updatedInputs[3].late)
+        assertEquals(listOf(date, date, date, date), dailyService.refreshedDates)
+    }
+
+    @Test
+    fun attendanceRejectsInvalidBoundsAndKeepsCachedValueOnFailure() = runTest {
+        val date = LocalDate(2026, 5, 1)
+        val course = course(
+            year = 2026,
+            name = "Seminar",
+            schedule = CourseSchedule(Module.SpringA, Day.Monday, 1, "3A204"),
+        ).copy(late = Int.MAX_VALUE)
+        val failure = IllegalStateException("offline")
+        val failures = mutableListOf<Throwable>()
+        val timetableService = FakeTimetableService(
+            initialSnapshot = TimetableSnapshot(courses = listOf(course)),
+            updateOperation = { throw failure },
+        )
+        val stateHolder = TimetableStateHolder(
+            timetableService = timetableService,
+            dailyTimetableService = FakeDailyTimetableService(),
+            initialDate = date,
+            scope = backgroundScope,
+            onFailure = failures::add,
+        )
+        stateHolder.bind("user-id", date)
+        runCurrent()
+
+        stateHolder.changeCourseAttendance(course.id, AttendanceCounter.Attendance, -1)
+        stateHolder.changeCourseAttendance(course.id, AttendanceCounter.Late, 1)
+        assertEquals(emptyList(), timetableService.updatedInputs)
+
+        stateHolder.changeCourseAttendance(course.id, AttendanceCounter.Absence, 1)
+        runCurrent()
+        assertEquals(1, timetableService.updatedInputs.single().absence)
+        assertEquals(course, stateHolder.timetableUiState.value.registeredCourses.single())
+        assertEquals("Operation failed", stateHolder.courseOperationsUiState.value.message)
+        assertEquals(1, failures.size)
+        assertSame(failure, failures.single())
+    }
+
+    @Test
     fun managesTagsAndSendsCompleteOrder() = runTest {
         val firstTag = Tag("first", "First", 0)
         val secondTag = Tag("second", "Second", 1)
@@ -685,6 +764,7 @@ private class FakeTimetableService(
     val registeredCodes = mutableListOf<String>()
     val createdManualInputs = mutableListOf<CreateRegisteredCourseInput>()
     val updatedCourseIds = mutableListOf<String>()
+    val updatedInputs = mutableListOf<UpdateRegisteredCourseInput>()
     val deletedCourseIds = mutableListOf<String>()
     val createdTagNames = mutableListOf<String>()
     val updatedTags = mutableListOf<Pair<String, String>>()
@@ -730,6 +810,7 @@ private class FakeTimetableService(
 
     override suspend fun updateCourse(accountId: String, input: UpdateRegisteredCourseInput): RegisteredCourse {
         updatedCourseIds += input.id
+        updatedInputs += input
         updateOperation()
         val course = snapshots.value.courses.first { it.id == input.id }
         return course.copy(name = input.name ?: course.name)

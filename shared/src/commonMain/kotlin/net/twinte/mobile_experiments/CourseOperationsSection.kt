@@ -2,6 +2,7 @@ package net.twinte.mobile_experiments
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -39,6 +40,7 @@ internal fun CourseOperationsSection(
     onRegister: (Course) -> Unit,
     onCreateCourse: (CreateRegisteredCourseInput, () -> Unit) -> Unit,
     onUpdate: (UpdateRegisteredCourseInput, () -> Unit) -> Unit,
+    onChangeAttendance: (String, AttendanceCounter, Int) -> Unit,
     onDelete: (RegisteredCourse) -> Unit,
     onCreateTag: (String) -> Unit,
     onUpdateTag: (Tag, String) -> Unit,
@@ -48,6 +50,7 @@ internal fun CourseOperationsSection(
     var query by remember(selectedYear) { mutableStateOf("") }
     var creatingCourse by remember { mutableStateOf(false) }
     var editingCourse by remember { mutableStateOf<RegisteredCourse?>(null) }
+    var attendanceCourseId by remember { mutableStateOf<String?>(null) }
     var deletingCourse by remember { mutableStateOf<RegisteredCourse?>(null) }
     val registeredCodes = registeredCourses.mapNotNullTo(mutableSetOf()) { it.code }
 
@@ -102,6 +105,7 @@ internal fun CourseOperationsSection(
             tagNames = tags.filter { it.id in course.tagIds }.map(Tag::name),
             enabled = !uiState.isLoading,
             onEdit = { editingCourse = course },
+            onAttendance = { attendanceCourseId = course.id },
             onDelete = { deletingCourse = course },
         )
     }
@@ -138,6 +142,17 @@ internal fun CourseOperationsSection(
             onUpdate = onUpdate,
             onDismiss = { editingCourse = null },
         )
+    }
+    attendanceCourseId?.let { id ->
+        registeredCourses.firstOrNull { it.id == id }?.let { course ->
+            CourseAttendanceDialog(
+                course = course,
+                isSaving = uiState.isLoading,
+                operationMessage = uiState.message,
+                onChange = onChangeAttendance,
+                onDismiss = { attendanceCourseId = null },
+            )
+        }
     }
     deletingCourse?.let { course ->
         AlertDialog(
@@ -202,38 +217,44 @@ private fun RegisteredCourseRow(
     tagNames: List<String>,
     enabled: Boolean,
     onEdit: () -> Unit,
+    onAttendance: () -> Unit,
     onDelete: () -> Unit,
 ) {
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(course.name, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            course.code?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall)
-            }
-            if (tagNames.isNotEmpty()) {
-                Text(
-                    tagNames.joinToString(", "),
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+        Text(course.name, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        course.code?.let {
+            Text(it, style = MaterialTheme.typography.bodySmall)
         }
-        OutlinedButton(enabled = enabled, onClick = onEdit) {
-            Text("Edit")
+        if (tagNames.isNotEmpty()) {
+            Text(
+                tagNames.joinToString(", "),
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
-        OutlinedButton(
-            enabled = enabled,
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-            onClick = onDelete,
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text("Delete")
+            OutlinedButton(enabled = enabled, onClick = onEdit) {
+                Text("Edit")
+            }
+            OutlinedButton(enabled = enabled, onClick = onAttendance) {
+                Text("Attendance")
+            }
+            OutlinedButton(
+                enabled = enabled,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                onClick = onDelete,
+            ) {
+                Text("Delete")
+            }
         }
     }
 }

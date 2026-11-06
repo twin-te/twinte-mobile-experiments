@@ -234,6 +234,9 @@ class KtorTimetableApiTest {
                     name = "",
                     methods = emptyList(),
                     schedules = emptyList(),
+                    attendance = 0,
+                    absence = 2,
+                    late = 3,
                     tagIds = emptyList(),
                 ),
             ).id,
@@ -269,6 +272,9 @@ class KtorTimetableApiTest {
         assertEquals("", updateRequest.name)
         assertEquals(emptyList(), updateRequest.methods?.values)
         assertEquals(emptyList(), updateRequest.schedules?.values)
+        assertEquals(0, updateRequest.attendance)
+        assertEquals(2, updateRequest.absence)
+        assertEquals(3, updateRequest.late)
         assertEquals(emptyList(), updateRequest.tagIds?.values)
         assertEquals(null, updateRequest.memo)
     }

@@ -183,6 +183,20 @@ class TimetableRepositoryTest {
     }
 
     @Test
+    fun attendanceUpdatePersistsZeroToCache() = runTest {
+        val original = course("course-id").copy(attendance = 1)
+        val updated = original.copy(attendance = 0)
+        val repository = repository(
+            timetableApi = FakeTimetableApi(updateRegisteredCourseResult = Result.success(updated)),
+            localDataSource = FakeTimetableLocalDataSource(TimetableSnapshot(courses = listOf(original))),
+        )
+
+        repository.updateCourse("user-id", UpdateRegisteredCourseInput(original.id, attendance = 0))
+
+        assertEquals(0, repository.observeTimetable("user-id").first().courses.single().attendance)
+    }
+
+    @Test
     fun failedMutationDoesNotChangeCache() = runTest {
         val cached = TimetableSnapshot(courses = listOf(course("course-id")))
         val localDataSource = FakeTimetableLocalDataSource(cached)
