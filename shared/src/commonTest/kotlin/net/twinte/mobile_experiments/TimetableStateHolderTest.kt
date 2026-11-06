@@ -77,6 +77,54 @@ class TimetableStateHolderTest {
     }
 
     @Test
+    fun currentModuleUsesAcademicYearAndIgnoresUnknownModule() = runTest {
+        val date = LocalDate(2026, 1, 15)
+        val stateHolder = TimetableStateHolder(
+            timetableService = FakeTimetableService(),
+            dailyTimetableService = FakeDailyTimetableService(),
+            initialDate = date,
+            scope = backgroundScope,
+            onFailure = {},
+        )
+        stateHolder.bind("user-id", date)
+        stateHolder.selectNextYear()
+        stateHolder.selectModule(Module.FallA)
+
+        stateHolder.selectCurrentModule(Module.Unknown)
+        assertEquals(2026, stateHolder.timetableUiState.value.selectedYear)
+        assertEquals(Module.FallA, stateHolder.timetableUiState.value.selectedModule)
+
+        stateHolder.selectCurrentModule(Module.FallC)
+        assertEquals(2025, stateHolder.timetableUiState.value.selectedYear)
+        assertEquals(Module.FallC, stateHolder.timetableUiState.value.selectedModule)
+    }
+
+    @Test
+    fun currentModuleInSameYearDoesNotCancelPendingSearch() = runTest {
+        val date = LocalDate(2026, 5, 1)
+        val result = catalogCourse("GB12345", "Seminar")
+        val pending = CompletableDeferred<List<Course>>()
+        val stateHolder = TimetableStateHolder(
+            timetableService = FakeTimetableService(searchResultProvider = { pending.await() }),
+            dailyTimetableService = FakeDailyTimetableService(),
+            initialDate = date,
+            scope = backgroundScope,
+            onFailure = {},
+        )
+        stateHolder.bind("user-id", date)
+        stateHolder.searchCourses("Seminar")
+        runCurrent()
+
+        stateHolder.selectCurrentModule(Module.SpringB)
+        assertTrue(stateHolder.courseOperationsUiState.value.isLoading)
+        pending.complete(listOf(result))
+        runCurrent()
+
+        assertEquals(Module.SpringB, stateHolder.timetableUiState.value.selectedModule)
+        assertEquals(listOf(result), stateHolder.courseOperationsUiState.value.searchResults)
+    }
+
+    @Test
     fun changingDateSwitchesDailyObservation() = runTest {
         val firstDate = LocalDate(2026, 5, 1)
         val secondDate = LocalDate(2026, 5, 2)

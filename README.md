@@ -39,15 +39,16 @@ Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-mu
 
 認証後の画面は commonMain の Navigation 3 で管理します。
 
-- Timetable: 年度・モジュールの選択、キャッシュ済み時間割の表示と更新
+- Timetable: 通常・特殊の時間割、モジュールの選択、授業の詳細・編集、キャッシュ済み時間割の表示と更新
 - Today: 今日の時間割の表示と更新
 - Courses: 授業の検索・登録・作成・編集・削除、出欠操作
 - Account: 認証の確認、provider の追加・解除、ログアウト、アカウント削除
 - Tags: Courses の Manage tags から開くタグ管理
 
-各タブの画面状態は切替時に保持します。戻る操作は、配下の画面からそのタブのルートへ、
-タブのルートからは Timetable へ戻ります。ログアウトやアカウント変更時にはナビゲーションと入力状態を破棄します。
-再生成時には選択年度・モジュール、タブ、検索入力、未保存の授業ドラフトを復元します。
+画面と年度はヘッダーのメニューから切り替えます。各画面の状態は切替時に保持します。
+戻る操作は、配下の画面からその系統のルートへ、ルートからは Timetable へ戻ります。
+ログアウトやアカウント変更時にはナビゲーションと入力状態を破棄します。
+再生成時には選択年度・モジュール、表示画面、通常・特殊の選択、検索入力、未保存の授業ドラフトを復元します。
 セッションや授業データの復元は既存の SessionStore・ローカルキャッシュを利用します。
 
 オフラインでの書き込みキューはありません。キャッシュ済みデータは表示できますが、
@@ -55,7 +56,11 @@ Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-mu
 
 ナビゲーションの回帰テストは `./gradlew :shared:jvmTest` で実行できます。
 UI テストでは画面配線、状態の保存・復元、アカウント間の分離を確認し、
-画面キャプチャを `shared/build/reports/navigation/` に出力します。
+画面キャプチャを `shared/build/reports/navigation/` と `shared/build/reports/timetable-ui/` に出力します。
+
+ホームは既存 Web のデザインを参考にしています。色は `ui/theme`、陰影・ボタンなどの共通部品は
+`ui/components`、時間割固有の表示は `feature/timetable` に置き、通信やキャッシュから分離しています。
+通常の表は月曜から金曜の1〜6限を表示し、土曜・時間外などの授業は「特殊」の「その他」から参照できます。
 
 ## Local configuration
 

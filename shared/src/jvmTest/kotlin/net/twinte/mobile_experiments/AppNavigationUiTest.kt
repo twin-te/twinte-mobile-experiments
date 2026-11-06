@@ -3,9 +3,6 @@ package net.twinte.mobile_experiments
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.LocalSaveableStateRegistry
@@ -15,7 +12,6 @@ import androidx.compose.ui.graphics.asSkiaBitmap
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -26,23 +22,9 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.v2.runComposeUiTest
 import androidx.compose.ui.test.v2.runSkikoComposeUiTest
 import androidx.compose.ui.unit.Density
-import kotlinx.datetime.LocalDate
 import kotlinx.coroutines.CompletableDeferred
-import net.twinte.mobile_experiments.core.auth.AuthSession
 import net.twinte.mobile_experiments.core.auth.AuthState
-import net.twinte.mobile_experiments.core.domain.AuthProvider
-import net.twinte.mobile_experiments.core.domain.User
-import net.twinte.mobile_experiments.core.domain.UserAuthentication
-import net.twinte.mobile_experiments.core.domain.CourseMethod
-import net.twinte.mobile_experiments.core.domain.CourseSchedule
-import net.twinte.mobile_experiments.core.domain.Day
-import net.twinte.mobile_experiments.core.domain.Module
-import net.twinte.mobile_experiments.core.domain.RegisteredCourse
-import net.twinte.mobile_experiments.core.timetable.DailyCourseSlot
-import net.twinte.mobile_experiments.core.timetable.DailyTimetable
-import net.twinte.mobile_experiments.core.timetable.DailyTimetableSnapshot
-import net.twinte.mobile_experiments.core.timetable.TimetableSnapshot
-import kotlin.time.Instant
+import net.twinte.mobile_experiments.ui.theme.TwinteTheme
 import org.jetbrains.skia.Image
 import java.io.File
 import kotlin.test.Test
@@ -53,17 +35,17 @@ import kotlin.test.assertTrue
 class AppNavigationUiTest {
     @Test
     fun tabsAndNestedBackNavigationRetainSearchInput() = runComposeUiTest {
-        setContent { TwinteTheme { NavigationContent() } }
-        onNodeWithTag("tab-Courses").performClick()
+        setContent { TwinteTheme { TestAuthenticatedApp() } }
+        navigate(AppTab.Courses)
         onNodeWithText("Name or keyword").performTextInput("Seminar")
-        onNodeWithTag("tab-Account").performClick()
-        onNodeWithTag("tab-Courses").performClick()
+        navigate(AppTab.Account)
+        navigate(AppTab.Courses)
         onNodeWithText("Name or keyword").assertTextContains("Seminar")
 
         onNodeWithText("Manage tags").performScrollTo().performClick()
         onNodeWithText("New tag").performTextInput("Important")
-        onNodeWithTag("tab-Today").performClick()
-        onNodeWithTag("tab-Courses").performClick()
+        navigate(AppTab.Today)
+        navigate(AppTab.Courses)
         onNodeWithText("New tag").assertTextContains("Important")
         onNodeWithContentDescription("Back").performClick()
         onNodeWithText("Name or keyword").assertTextContains("Seminar")
@@ -72,8 +54,8 @@ class AppNavigationUiTest {
     @Test
     fun recreationRestoresTabNestedRouteAndInputs() = runComposeUiTest {
         val restoration = SaveableComposition()
-        setContent { restoration.Content { TwinteTheme { NavigationContent() } } }
-        onNodeWithTag("tab-Courses").performClick()
+        setContent { restoration.Content { TwinteTheme { TestAuthenticatedApp() } } }
+        navigate(AppTab.Courses)
         onNodeWithText("Name or keyword").performTextInput("Seminar")
         onNodeWithText("Manage tags").performScrollTo().performClick()
         onNodeWithText("New tag").performTextInput("Important")
@@ -81,7 +63,7 @@ class AppNavigationUiTest {
         runOnIdle { restoration.saveAndDispose() }
         runOnIdle { restoration.restore() }
 
-        onNodeWithTag("tab-Courses").assertIsSelected()
+        onNodeWithTag("screen-Tags").assertIsDisplayed()
         onNodeWithText("New tag").assertTextContains("Important")
         onNodeWithContentDescription("Back").performClick()
         onNodeWithText("Name or keyword").assertTextContains("Seminar")
@@ -90,8 +72,8 @@ class AppNavigationUiTest {
     @Test
     fun recreationPreservesUnsavedCourseDraft() = runComposeUiTest {
         val restoration = SaveableComposition()
-        setContent { restoration.Content { TwinteTheme { NavigationContent() } } }
-        onNodeWithTag("tab-Courses").performClick()
+        setContent { restoration.Content { TwinteTheme { TestAuthenticatedApp() } } }
+        navigate(AppTab.Courses)
         onNodeWithText("Create course").performScrollTo().performClick()
         onNodeWithText("Name", substring = false).performTextInput("New seminar")
         onNodeWithText("Credit (e.g. 1.0)").performTextInput("1.5")
@@ -102,97 +84,97 @@ class AppNavigationUiTest {
         onNodeWithText("Name", substring = false).assertTextContains("New seminar")
         onNodeWithText("Credit (e.g. 1.0)").assertTextContains("1.5")
         onNodeWithText("Cancel").performClick()
-        onNodeWithTag("tab-Courses").assertIsSelected()
+        onNodeWithTag("screen-Courses").assertIsDisplayed()
     }
 
     @Test
     fun logoutRemovesProtectedScreensAndLoginStartsAtHome() = runComposeUiTest {
-        var auth by mutableStateOf(signedIn())
+        var auth by mutableStateOf(testSignedIn())
         setContent {
             TwinteTheme {
                 AuthenticationGate(auth, true, false, {}, {}) {
-                    NavigationContent(auth)
+                    TestAuthenticatedApp(auth)
                 }
             }
         }
-        onNodeWithTag("tab-Courses").performClick()
+        navigate(AppTab.Courses)
         onNodeWithText("Name or keyword").performTextInput("Private query")
         runOnIdle { auth = AuthUiState(AuthState.LoggedOut, "Signed out") }
         onNodeWithText("Google").assertIsDisplayed()
-        onNodeWithTag("tab-Courses").assertDoesNotExist()
+        onNodeWithTag("screen-Courses").assertDoesNotExist()
 
-        runOnIdle { auth = signedIn() }
-        onNodeWithTag("tab-Timetable").assertIsSelected()
-        onNodeWithTag("tab-Courses").performClick()
+        runOnIdle { auth = testSignedIn() }
+        onNodeWithTag("screen-Timetable").assertIsDisplayed()
+        navigate(AppTab.Courses)
         onNodeWithText("Private query").assertDoesNotExist()
     }
 
     @Test
     fun switchingAccountsResetsNavigationAndPrivateInputs() = runComposeUiTest {
-        var auth by mutableStateOf(signedIn())
+        var auth by mutableStateOf(testSignedIn())
         setContent {
             TwinteTheme {
                 AuthenticationGate(auth, true, false, {}, {}) {
-                    NavigationContent(auth)
+                    TestAuthenticatedApp(auth)
                 }
             }
         }
-        onNodeWithTag("tab-Courses").performClick()
+        navigate(AppTab.Courses)
         onNodeWithText("Name or keyword").performTextInput("Private query")
-        runOnIdle { auth = signedIn("other-user") }
+        runOnIdle { auth = testSignedIn("other-user") }
 
-        onNodeWithTag("tab-Timetable").assertIsSelected()
-        onNodeWithTag("tab-Courses").performClick()
+        onNodeWithTag("screen-Timetable").assertIsDisplayed()
+        navigate(AppTab.Courses)
         onNodeWithText("Private query").assertDoesNotExist()
     }
 
     @Test
     fun savedNavigationIsNotRestoredForADifferentAccount() = runComposeUiTest {
-        var auth by mutableStateOf(signedIn())
+        var auth by mutableStateOf(testSignedIn())
         val restoration = SaveableComposition()
         setContent {
             restoration.Content {
                 TwinteTheme {
-                    AuthenticationGate(auth, true, false, {}, {}) { NavigationContent(auth) }
+                    AuthenticationGate(auth, true, false, {}, {}) { TestAuthenticatedApp(auth) }
                 }
             }
         }
-        onNodeWithTag("tab-Courses").performClick()
+        navigate(AppTab.Courses)
         onNodeWithText("Name or keyword").performTextInput("Private query")
         runOnIdle { restoration.saveAndDispose() }
         runOnIdle {
-            auth = signedIn("other-user")
+            auth = testSignedIn("other-user")
             restoration.restore()
         }
-        onNodeWithTag("tab-Timetable").assertIsSelected()
-        onNodeWithTag("tab-Courses").performClick()
+        onNodeWithTag("screen-Timetable").assertIsDisplayed()
+        navigate(AppTab.Courses)
         onNodeWithText("Private query").assertDoesNotExist()
     }
 
     @Test
     fun refreshingTheSameAccountPreservesCurrentRoute() = runComposeUiTest {
-        var auth by mutableStateOf(signedIn())
+        var auth by mutableStateOf(testSignedIn())
         setContent {
             TwinteTheme {
-                AuthenticationGate(auth, true, false, {}, {}) { NavigationContent(auth) }
+                AuthenticationGate(auth, true, false, {}, {}) { TestAuthenticatedApp(auth) }
             }
         }
-        onNodeWithTag("tab-Courses").performClick()
+        navigate(AppTab.Courses)
         onNodeWithText("Name or keyword").performTextInput("Seminar")
-        runOnIdle { auth = signedIn().copy(message = "Checked session") }
-        onNodeWithTag("tab-Courses").assertIsSelected()
+        runOnIdle { auth = testSignedIn().copy(message = "Checked session") }
+        onNodeWithTag("screen-Courses").assertIsDisplayed()
         onNodeWithText("Name or keyword").assertTextContains("Seminar")
     }
 
     @Test
     fun changingYearWhileCoursesAreHiddenResetsTheirSavedInputs() = runComposeUiTest {
-        setContent { TwinteTheme { NavigationContent() } }
-        onNodeWithTag("tab-Courses").performClick()
+        setContent { TwinteTheme { TestAuthenticatedApp() } }
+        navigate(AppTab.Courses)
         onNodeWithText("Name or keyword").performTextInput("Previous year query")
-        onNodeWithTag("tab-Timetable").performClick()
-        onNodeWithContentDescription("Previous year").performClick()
-        onNodeWithTag("tab-Courses").performClick()
-        onNodeWithText("2025年度").assertIsDisplayed()
+        navigate(AppTab.Timetable)
+        previousYear()
+        navigate(AppTab.Courses)
+        onNodeWithTag("selected-year").assertTextContains("2025年度")
         onNodeWithText("Previous year query").assertDoesNotExist()
     }
 
@@ -203,19 +185,19 @@ class AppNavigationUiTest {
             pending.await()
             emptyList()
         })
-        setContent { TwinteTheme { NavigationContent(service = service) } }
-        onNodeWithTag("tab-Courses").performClick()
+        setContent { TwinteTheme { TestAuthenticatedApp(service = service) } }
+        navigate(AppTab.Courses)
         onNodeWithText("Search", substring = false).performClick()
         onNodeWithText("Searching courses...").assertIsDisplayed()
-        onNodeWithTag("tab-Today").performClick()
+        navigate(AppTab.Today)
         runOnIdle { pending.complete(Unit) }
-        onNodeWithTag("tab-Courses").performClick()
+        navigate(AppTab.Courses)
         onNodeWithText("No courses found").assertIsDisplayed()
     }
 
     @Test
     fun leavingTheAuthenticatedGraphCancelsAPendingCourseMutation() = runComposeUiTest {
-        var auth by mutableStateOf(signedIn())
+        var auth by mutableStateOf(testSignedIn())
         val pending = CompletableDeferred<Unit>()
         val canceled = CompletableDeferred<Unit>()
         val service = FakeTimetableService(manualCreateOperation = {
@@ -228,11 +210,11 @@ class AppNavigationUiTest {
         setContent {
             TwinteTheme {
                 AuthenticationGate(auth, true, false, {}, {}) {
-                    NavigationContent(auth, service = service)
+                    TestAuthenticatedApp(auth, service = service)
                 }
             }
         }
-        onNodeWithTag("tab-Courses").performClick()
+        navigate(AppTab.Courses)
         onNodeWithText("Create course").performScrollTo().performClick()
         onNodeWithText("Name", substring = false).performTextInput("New seminar")
         onNodeWithText("Credit (e.g. 1.0)").performTextInput("1.5")
@@ -243,26 +225,28 @@ class AppNavigationUiTest {
         }
         onNodeWithText("Session expired").assertIsDisplayed()
         runOnIdle { assertTrue(canceled.isCompleted) }
-        onNodeWithTag("tab-Courses").assertDoesNotExist()
+        onNodeWithTag("screen-Courses").assertDoesNotExist()
     }
 
     @Test
     fun recreationPreservesSelectedYearModuleAndMatchingCourseInputs() = runComposeUiTest {
         val restoration = SaveableComposition()
-        setContent { restoration.Content { TwinteTheme { NavigationContent() } } }
-        onNodeWithContentDescription("Previous year").performClick()
+        setContent { restoration.Content { TwinteTheme { TestAuthenticatedApp() } } }
+        previousYear()
+        onNodeWithContentDescription("学期を選択").performClick()
         onNodeWithText("秋A").performClick()
-        onNodeWithTag("tab-Courses").performClick()
+        navigate(AppTab.Courses)
         onNodeWithText("Name or keyword").performTextInput("2025 query")
         runOnIdle { restoration.saveAndDispose() }
         runOnIdle { restoration.restore() }
 
-        onNodeWithTag("tab-Courses").assertIsSelected()
-        onNodeWithText("2025年度").assertIsDisplayed()
+        onNodeWithTag("screen-Courses").assertIsDisplayed()
+        onNodeWithTag("selected-year").assertTextContains("2025年度")
         onNodeWithText("Name or keyword").assertTextContains("2025 query")
-        onNodeWithTag("tab-Timetable").performClick()
-        onNodeWithText("2025年度").assertIsDisplayed()
-        onNodeWithText("秋A").assertIsSelected()
+        navigate(AppTab.Timetable)
+        onNodeWithText("秋A").assertIsDisplayed()
+        onNodeWithContentDescription("メニュー").performClick()
+        onNodeWithTag("drawer-year").assertTextContains("2025年度")
     }
 
     @Test
@@ -287,12 +271,11 @@ class AppNavigationUiTest {
     fun rendersNavigationAtPhoneAndTabletSizes() {
         listOf(Size(360f, 800f), Size(800f, 1100f)).forEach { size ->
             runSkikoComposeUiTest(size = size, density = Density(1f)) {
-                setContent { TwinteTheme { NavigationContent(withCourse = true) } }
+                setContent { TwinteTheme { TestAuthenticatedApp(withCourse = true) } }
                 AppTab.entries.forEach { tab ->
-                    onNodeWithTag("tab-${tab.name}").performClick().assertIsSelected()
-                    AppTab.entries.forEach { visibleTab ->
-                        onNodeWithTag("tab-${visibleTab.name}").assertIsDisplayed()
-                    }
+                    navigate(tab)
+                    onNodeWithTag("screen-${tab.root}").assertIsDisplayed()
+                    onNodeWithContentDescription("メニュー").assertIsDisplayed()
                     val file = File("build/reports/navigation/${size.width.toInt()}x${size.height.toInt()}-${tab.name}.png")
                     file.parentFile.mkdirs()
                     Image.makeFromBitmap(captureToImage().asSkiaBitmap()).use { image ->
@@ -303,84 +286,20 @@ class AppNavigationUiTest {
         }
     }
 
-    @Composable
-    private fun NavigationContent(
-        auth: AuthUiState = signedIn(),
-        withCourse: Boolean = false,
-        service: FakeTimetableService? = null,
-    ) {
-        val scope = rememberCoroutineScope()
-        val authStateHolder = remember(scope) {
-            AuthStateHolder(
-                authService = FakeAuthService(),
-                googleIdTokenProvider = UnavailableGoogleIdTokenProvider,
-                appleSignInCredentialProvider = UnavailableAppleSignInCredentialProvider,
-                scope = scope,
-            )
-        }
-        val timetableService = remember(withCourse, service) {
-            service ?: FakeTimetableService(
-                initialSnapshot = TimetableSnapshot(
-                    courses = if (withCourse) listOf(course) else emptyList(),
-                    lastSuccessfulSyncAt = Instant.parse("2026-11-06T00:00:00Z"),
-                ),
-            )
-        }
-        val dailyService = remember {
-            val date = LocalDate(2026, 11, 6)
-            FakeDailyTimetableService(
-                initialSnapshot = DailyTimetableSnapshot(
-                    timetable = DailyTimetable(
-                        date, Module.FallB, Day.Friday, "Normal",
-                        listOf(DailyCourseSlot.Course(2, "10:10", "11:25", course.id, course.name, "3A204")),
-                    ),
-                    lastSuccessfulSyncAt = Instant.parse("2026-11-06T00:00:00Z"),
-                ),
-            )
-        }
-        val timetableStateHolder = rememberTimetableStateHolder(
-            timetableService = timetableService,
-            dailyTimetableService = dailyService,
-            initialDate = LocalDate(2026, 11, 6),
-            scope = scope,
-            onFailure = authStateHolder::handleExternalFailure,
-        )
-        val accountId = (auth.authState as? AuthState.LoggedIn)?.user?.id
-        LaunchedEffect(accountId, timetableStateHolder) {
-            timetableStateHolder.bind(accountId, LocalDate(2026, 11, 6))
-        }
-        AppNavigation(
-            authUiState = auth,
-            authStateHolder = authStateHolder,
-            timetableStateHolder = timetableStateHolder,
-            isGoogleConfigured = true,
-            isAppleConfigured = true,
-        )
+    private fun androidx.compose.ui.test.ComposeUiTest.navigate(tab: AppTab) {
+        onNodeWithContentDescription("メニュー").performClick()
+        onNodeWithTag("destination-${tab.name}").performClick()
     }
 
-    private fun signedIn(id: String = "user") = AuthUiState(
-        AuthState.LoggedIn(
-            AuthSession(
-                sessionId = "session",
-                user = User(id, listOf(UserAuthentication(AuthProvider.Google, "social-id"))),
-            ),
-        ),
-        message = "Signed in",
-    )
-
-    private val course = RegisteredCourse(
-        id = "course",
-        year = 2026,
-        name = "Software Engineering Seminar",
-        instructors = "Teacher",
-        credit = "1.5",
-        methods = listOf(CourseMethod.FaceToFace),
-        schedules = listOf(CourseSchedule(Module.SpringA, Day.Monday, 2, "3A204")),
-    )
+    private fun androidx.compose.ui.test.ComposeUiTest.previousYear() {
+        onNodeWithContentDescription("メニュー").performClick()
+        onNodeWithContentDescription("Previous year").performClick()
+        onNodeWithTag("destination-Timetable").performClick()
+    }
 }
 
 // Skiko's StateRestorationTester has no platform codec. Exercise the real registry instead.
-private class SaveableComposition {
+internal class SaveableComposition {
     private var visible by mutableStateOf(true)
     private var registry = SaveableStateRegistry(restoredValues = null, canBeSaved = { true })
     private var saved = emptyMap<String, List<Any?>>()

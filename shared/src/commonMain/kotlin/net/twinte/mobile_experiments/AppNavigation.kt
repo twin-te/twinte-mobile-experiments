@@ -4,7 +4,14 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSerializable
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.datetime.number
+import net.twinte.mobile_experiments.feature.timetable.TimetableScreen
+import net.twinte.mobile_experiments.feature.timetable.TimetableCourseDialog
 
 @Composable
 internal fun AppNavigation(
@@ -19,15 +26,29 @@ internal fun AppNavigation(
     val daily by timetableStateHolder.dailyTimetableUiState.collectAsStateWithLifecycle()
     val navigator = rememberAppNavigator()
     val operationsState = operations.copy(isLoading = operations.isLoading || authUiState.isLoading)
+    var selectedCourseIds by rememberSerializable(timetable.selectedYear) { mutableStateOf(emptyList<String>()) }
+    var editingCourseId by rememberSaveable(timetable.selectedYear) { mutableStateOf<String?>(null) }
+    val refresh = {
+        timetableStateHolder.refreshTimetable()
+        timetableStateHolder.refreshDailyTimetable()
+    }
 
-    AppScaffold(authUiState, navigator) { route ->
+    AppScaffold(
+        authUiState = authUiState, navigator = navigator,
+        selectedYear = timetable.selectedYear, calendarDate = daily.date, calendarLabel = daily.eventLabel,
+        onPreviousYear = timetableStateHolder::selectPreviousYear,
+        onNextYear = timetableStateHolder::selectNextYear,
+        onRefresh = refresh, isRefreshing = timetable.isLoading || daily.isLoading,
+    ) { route ->
         when (route) {
             AppRoute.Timetable -> TimetableScreen(
-                uiState = timetable.copy(isLoading = timetable.isLoading || authUiState.isLoading),
-                onRefresh = timetableStateHolder::refreshTimetable,
-                onPreviousYear = timetableStateHolder::selectPreviousYear,
-                onNextYear = timetableStateHolder::selectNextYear,
+                uiState = timetable.copy(isLoading = timetable.isLoading || daily.isLoading || authUiState.isLoading),
+                onRefresh = refresh,
+                currentModule = daily.module,
+                currentYear = if (daily.date.month.number >= 4) daily.date.year else daily.date.year - 1,
+                onCurrentModule = { daily.module?.let(timetableStateHolder::selectCurrentModule) },
                 onSelectModule = timetableStateHolder::selectModule,
+                onOpenCourses = { selectedCourseIds = it },
             )
             AppRoute.Today -> TodayScreen(
                 uiState = daily.copy(isLoading = daily.isLoading || authUiState.isLoading),
@@ -77,5 +98,24 @@ internal fun AppNavigation(
                 )
             }
         }
+    }
+    val selectedCourses = timetable.registeredCourses.filter { it.id in selectedCourseIds }
+    TimetableCourseDialog(
+        courses = selectedCourses,
+        onSelect = { selectedCourseIds = listOf(it) },
+        onEdit = {
+            selectedCourseIds = emptyList()
+            editingCourseId = it
+        },
+        onDismiss = { selectedCourseIds = emptyList() },
+    )
+    timetable.registeredCourses.firstOrNull { it.id == editingCourseId }?.let { course ->
+        CourseEditorDialog(
+            course = course, year = timetable.selectedYear, tags = timetable.tags,
+            isSaving = operationsState.isLoading, saveFailed = operationsState.operationFailed,
+            onCreate = timetableStateHolder::createCourseManually,
+            onUpdate = timetableStateHolder::updateCourse,
+            onDismiss = { editingCourseId = null },
+        )
     }
 }
