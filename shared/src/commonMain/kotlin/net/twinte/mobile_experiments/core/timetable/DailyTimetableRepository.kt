@@ -1,5 +1,7 @@
 package net.twinte.mobile_experiments.core.timetable
 
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
@@ -38,9 +40,11 @@ class DailyTimetableRepository(
     override suspend fun refresh(accountId: String, date: LocalDate) {
         refreshMutex.withLock {
             authenticatedSessionProvider.withActiveSession(accountId) { session ->
+                val snapshot = api.getByDate(session, date)
+                currentCoroutineContext().ensureActive()
                 localDataSource.replace(
                     accountId = accountId,
-                    snapshot = api.getByDate(session, date),
+                    snapshot = snapshot,
                     syncedAt = now(),
                 )
             }

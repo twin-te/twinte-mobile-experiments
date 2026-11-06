@@ -1,18 +1,19 @@
 package net.twinte.mobile_experiments
 
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
@@ -44,12 +45,11 @@ fun App(
             scope = scope,
         )
     }
-    var today by remember { mutableStateOf(currentLocalDate()) }
     val timetableStateHolder = remember(dependencies, authStateHolder, scope) {
         TimetableStateHolder(
             timetableService = dependencies.timetableService,
             dailyTimetableService = dependencies.dailyTimetableService,
-            initialDate = today,
+            initialDate = currentLocalDate(),
             scope = scope,
             onFailure = authStateHolder::handleExternalFailure,
         )
@@ -59,19 +59,31 @@ fun App(
     val timetableUiState by timetableStateHolder.timetableUiState.collectAsState()
     val courseOperationsUiState by timetableStateHolder.courseOperationsUiState.collectAsState()
     val dailyTimetableUiState by timetableStateHolder.dailyTimetableUiState.collectAsState()
-    val loggedInUser = (authUiState.authState as? AuthState.LoggedIn)?.user
+    val loggedInState = authUiState.authState as? AuthState.LoggedIn
+    val loggedInUser = loggedInState?.user
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     LaunchedEffect(authStateHolder) {
         authStateHolder.restoreSession()
     }
-    LaunchedEffect(Unit) {
-        while (true) {
-            today = currentLocalDate()
-            delay(1.minutes)
+    LaunchedEffect(loggedInUser?.id, loggedInState?.session?.sessionId, lifecycleOwner, timetableStateHolder) {
+        val accountId = loggedInUser?.id
+        timetableStateHolder.bind(accountId, currentLocalDate())
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            if (accountId == null) return@repeatOnLifecycle
+            var date = currentLocalDate()
+            timetableStateHolder.bind(accountId, date)
+            timetableStateHolder.syncIfStale()
+            while (true) {
+                delay(1.minutes)
+                val currentDate = currentLocalDate()
+                if (currentDate != date) {
+                    date = currentDate
+                    timetableStateHolder.bind(accountId, date)
+                    timetableStateHolder.syncIfStale()
+                }
+            }
         }
-    }
-    LaunchedEffect(loggedInUser?.id, today, timetableStateHolder) {
-        timetableStateHolder.bind(loggedInUser?.id, today)
     }
 
     MaterialTheme {

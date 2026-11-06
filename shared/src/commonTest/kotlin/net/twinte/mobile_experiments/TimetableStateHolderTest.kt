@@ -1,20 +1,18 @@
 package net.twinte.mobile_experiments
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.LocalDate
 import net.twinte.mobile_experiments.core.api.TwinteApiException
-import net.twinte.mobile_experiments.core.timetable.DailyTimetableService
-import net.twinte.mobile_experiments.core.timetable.DailyTimetableSnapshot
-import net.twinte.mobile_experiments.core.timetable.TimetableService
-import net.twinte.mobile_experiments.core.timetable.TimetableSnapshot
+import net.twinte.mobile_experiments.core.domain.Course
 import net.twinte.mobile_experiments.core.domain.CourseMethod
 import net.twinte.mobile_experiments.core.domain.CourseSchedule
-import net.twinte.mobile_experiments.core.domain.Course
 import net.twinte.mobile_experiments.core.domain.CreateRegisteredCourseInput
 import net.twinte.mobile_experiments.core.domain.Day
 import net.twinte.mobile_experiments.core.domain.Module
@@ -22,11 +20,18 @@ import net.twinte.mobile_experiments.core.domain.RegisteredCourse
 import net.twinte.mobile_experiments.core.domain.SearchCoursesInput
 import net.twinte.mobile_experiments.core.domain.Tag
 import net.twinte.mobile_experiments.core.domain.UpdateRegisteredCourseInput
+import net.twinte.mobile_experiments.core.timetable.DailyTimetable
+import net.twinte.mobile_experiments.core.timetable.DailyTimetableService
+import net.twinte.mobile_experiments.core.timetable.DailyTimetableSnapshot
+import net.twinte.mobile_experiments.core.timetable.TimetableService
+import net.twinte.mobile_experiments.core.timetable.TimetableSnapshot
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TimetableStateHolderTest {
@@ -423,16 +428,193 @@ class TimetableStateHolderTest {
         assertEquals(emptyList(), stateHolder.timetableUiState.value.registeredCourses)
         assertEquals(emptyList(), dailyService.refreshedDates)
     }
+
+    @Test
+    fun automaticSyncShowsCachedTimetableBeforeRefreshing() = runTest {
+        val date = LocalDate(2026, 5, 1)
+        val now = Instant.parse("2026-05-01T12:00:00Z")
+        val pendingRefresh = CompletableDeferred<Unit>()
+        val cachedCourse = course(2026, "Cached", CourseSchedule(Module.SpringA, Day.Monday, 1, "Room"))
+        val service = FakeTimetableService(
+            initialSnapshot = TimetableSnapshot(
+                courses = listOf(cachedCourse),
+                lastSuccessfulSyncAt = now - 10.minutes,
+            ),
+            refreshOperation = { pendingRefresh.await() },
+        )
+        val stateHolder = TimetableStateHolder(
+            timetableService = service,
+            dailyTimetableService = FakeDailyTimetableService(),
+            initialDate = date,
+            scope = backgroundScope,
+            onFailure = {},
+            now = { now },
+        )
+
+        stateHolder.bind("user-id", date)
+        stateHolder.syncIfStale()
+        assertEquals(emptyList(), service.refreshedAccountIds)
+        runCurrent()
+
+        assertEquals(listOf("user-id"), service.refreshedAccountIds)
+        assertEquals(listOf(cachedCourse), stateHolder.timetableUiState.value.registeredCourses)
+        assertTrue(stateHolder.timetableUiState.value.isLoading)
+
+        pendingRefresh.complete(Unit)
+        runCurrent()
+        assertFalse(stateHolder.timetableUiState.value.isLoading)
+    }
+
+    @Test
+    fun automaticSyncSkipsFreshCacheUntilItBecomesStale() = runTest {
+        val date = LocalDate(2026, 5, 1)
+        var now = Instant.parse("2026-05-01T12:00:00Z")
+        val cachedAt = now - 2.minutes
+        val timetableService = FakeTimetableService(
+            initialSnapshot = TimetableSnapshot(lastSuccessfulSyncAt = cachedAt),
+        )
+        val dailyService = FakeDailyTimetableService(initialSnapshot = dailySnapshot(date, cachedAt))
+        val stateHolder = TimetableStateHolder(
+            timetableService = timetableService,
+            dailyTimetableService = dailyService,
+            initialDate = date,
+            scope = backgroundScope,
+            onFailure = {},
+            now = { now },
+        )
+
+        stateHolder.bind("user-id", date)
+        stateHolder.syncIfStale()
+        runCurrent()
+        assertEquals(emptyList(), timetableService.refreshedAccountIds)
+        assertEquals(emptyList(), dailyService.refreshedDates)
+
+        now += 6.minutes
+        stateHolder.syncIfStale()
+        runCurrent()
+        assertEquals(listOf("user-id"), timetableService.refreshedAccountIds)
+        assertEquals(listOf(date), dailyService.refreshedDates)
+    }
+
+    @Test
+    fun automaticSyncFailureRetainsCachedCoursesAndRetriesOnNextRequest() = runTest {
+        val date = LocalDate(2026, 5, 1)
+        val now = Instant.parse("2026-05-01T12:00:00Z")
+        val cachedCourse = course(2026, "Cached", CourseSchedule(Module.SpringA, Day.Monday, 1, "Room"))
+        val failure = IllegalStateException("offline")
+        val failures = mutableListOf<Throwable>()
+        val service = FakeTimetableService(
+            initialSnapshot = TimetableSnapshot(
+                courses = listOf(cachedCourse),
+                lastSuccessfulSyncAt = now - 10.minutes,
+            ),
+            refreshOperation = { throw failure },
+        )
+        val stateHolder = TimetableStateHolder(
+            timetableService = service,
+            dailyTimetableService = FakeDailyTimetableService(),
+            initialDate = date,
+            scope = backgroundScope,
+            onFailure = failures::add,
+            now = { now },
+        )
+
+        stateHolder.bind("user-id", date)
+        stateHolder.syncIfStale()
+        runCurrent()
+        assertEquals(listOf(cachedCourse), stateHolder.timetableUiState.value.registeredCourses)
+        assertEquals(now - 10.minutes, stateHolder.timetableUiState.value.lastSuccessfulSyncAt)
+        assertFalse(stateHolder.timetableUiState.value.isLoading)
+
+        stateHolder.syncIfStale()
+        runCurrent()
+        assertEquals(listOf("user-id", "user-id"), service.refreshedAccountIds)
+        assertEquals(2, failures.size)
+        failures.forEach { assertSame(failure, it) }
+    }
+
+    @Test
+    fun accountChangeCancelsOldAutomaticRefreshWithoutReplacingNewAccount() = runTest {
+        val date = LocalDate(2026, 5, 1)
+        val now = Instant.parse("2026-05-01T12:00:00Z")
+        val pendingFirstRefresh = CompletableDeferred<Unit>()
+        val firstCourse = course(2026, "First", CourseSchedule(Module.SpringA, Day.Monday, 1, "A"))
+        val secondCourse = course(2026, "Second", CourseSchedule(Module.SpringA, Day.Tuesday, 2, "B"))
+        val service = FakeTimetableService(
+            snapshotsByAccount = mapOf(
+                "first" to MutableStateFlow(TimetableSnapshot(listOf(firstCourse), lastSuccessfulSyncAt = now - 10.minutes)),
+                "second" to MutableStateFlow(TimetableSnapshot(listOf(secondCourse), lastSuccessfulSyncAt = now - 10.minutes)),
+            ),
+            refreshOperation = { accountId ->
+                if (accountId == "first") withContext(NonCancellable) { pendingFirstRefresh.await() }
+            },
+        )
+        val stateHolder = TimetableStateHolder(
+            timetableService = service,
+            dailyTimetableService = FakeDailyTimetableService(),
+            initialDate = date,
+            scope = backgroundScope,
+            onFailure = { error("Canceled refresh must not report a failure") },
+            now = { now },
+        )
+
+        stateHolder.bind("first", date)
+        stateHolder.syncIfStale()
+        runCurrent()
+        stateHolder.bind("second", date)
+        stateHolder.syncIfStale()
+        runCurrent()
+        pendingFirstRefresh.complete(Unit)
+        runCurrent()
+
+        assertEquals(listOf("first", "second"), service.refreshedAccountIds)
+        assertEquals(listOf(secondCourse), stateHolder.timetableUiState.value.registeredCourses)
+        assertFalse(stateHolder.timetableUiState.value.isLoading)
+    }
+
+    @Test
+    fun dateChangeCancelsOldAutomaticDailyRefresh() = runTest {
+        val firstDate = LocalDate(2026, 5, 1)
+        val secondDate = LocalDate(2026, 5, 2)
+        val pendingFirstRefresh = CompletableDeferred<Unit>()
+        val dailyService = FakeDailyTimetableService(
+            refreshOperation = { date ->
+                if (date == firstDate) withContext(NonCancellable) { pendingFirstRefresh.await() }
+            },
+        )
+        val stateHolder = TimetableStateHolder(
+            timetableService = FakeTimetableService(),
+            dailyTimetableService = dailyService,
+            initialDate = firstDate,
+            scope = backgroundScope,
+            onFailure = { error("Canceled refresh must not report a failure") },
+        )
+
+        stateHolder.bind("user-id", firstDate)
+        stateHolder.syncIfStale()
+        runCurrent()
+        stateHolder.bind("user-id", secondDate)
+        stateHolder.syncIfStale()
+        runCurrent()
+        pendingFirstRefresh.complete(Unit)
+        runCurrent()
+
+        assertEquals(listOf(firstDate, secondDate), dailyService.refreshedDates)
+        assertEquals(secondDate, stateHolder.dailyTimetableUiState.value.date)
+        assertFalse(stateHolder.dailyTimetableUiState.value.isLoading)
+    }
 }
 
 private class FakeTimetableService(
     initialSnapshot: TimetableSnapshot = TimetableSnapshot(),
     private val searchResults: List<Course> = emptyList(),
     private val searchResultProvider: (suspend (SearchCoursesInput) -> List<Course>)? = null,
-    private val refreshOperation: suspend () -> Unit = {},
+    private val refreshOperation: suspend (String) -> Unit = {},
     private val updateOperation: suspend () -> Unit = {},
+    private val snapshotsByAccount: Map<String, MutableStateFlow<TimetableSnapshot>> = emptyMap(),
 ) : TimetableService {
     private val snapshots = MutableStateFlow(initialSnapshot)
+    val refreshedAccountIds = mutableListOf<String>()
     var lastSearchInput: SearchCoursesInput? = null
         private set
     val registeredCodes = mutableListOf<String>()
@@ -450,9 +632,12 @@ private class FakeTimetableService(
     }
 
     override fun observeTimetable(accountId: String, year: Int?): Flow<TimetableSnapshot> =
-        snapshots
+        snapshotsByAccount[accountId] ?: snapshots
 
-    override suspend fun refresh(accountId: String, year: Int?) = refreshOperation()
+    override suspend fun refresh(accountId: String, year: Int?) {
+        refreshedAccountIds += accountId
+        refreshOperation(accountId)
+    }
 
     fun emitSnapshot(snapshot: TimetableSnapshot) {
         snapshots.value = snapshot
@@ -531,19 +716,32 @@ private fun catalogCourse(code: String, name: String): Course =
 
 private class FakeDailyTimetableService(
     private val refreshError: Throwable? = null,
-    private val refreshOperation: suspend () -> Unit = {},
+    private val refreshOperation: suspend (LocalDate) -> Unit = {},
+    private val initialSnapshot: DailyTimetableSnapshot? = null,
 ) : DailyTimetableService {
     val observedDates = mutableListOf<LocalDate>()
     val refreshedDates = mutableListOf<LocalDate>()
 
     override fun observe(accountId: String, date: LocalDate): Flow<DailyTimetableSnapshot?> {
         observedDates += date
-        return MutableStateFlow(null)
+        return MutableStateFlow(initialSnapshot?.takeIf { it.timetable.date == date })
     }
 
     override suspend fun refresh(accountId: String, date: LocalDate) {
         refreshedDates += date
-        refreshOperation()
+        refreshOperation(date)
         refreshError?.let { throw it }
     }
 }
+
+private fun dailySnapshot(date: LocalDate, syncedAt: Instant): DailyTimetableSnapshot =
+    DailyTimetableSnapshot(
+        timetable = DailyTimetable(
+            date = date,
+            module = Module.SpringA,
+            effectiveDay = Day.Friday,
+            eventLabel = "Normal",
+            slots = emptyList(),
+        ),
+        lastSuccessfulSyncAt = syncedAt,
+    )
