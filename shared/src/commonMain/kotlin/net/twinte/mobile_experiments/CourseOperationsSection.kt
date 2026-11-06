@@ -26,10 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import net.twinte.mobile_experiments.core.domain.Course
-import net.twinte.mobile_experiments.core.domain.CreateRegisteredCourseInput
 import net.twinte.mobile_experiments.core.domain.RegisteredCourse
 import net.twinte.mobile_experiments.core.domain.Tag
-import net.twinte.mobile_experiments.core.domain.UpdateRegisteredCourseInput
 
 @Composable
 internal fun CourseOperationsSection(
@@ -39,16 +37,14 @@ internal fun CourseOperationsSection(
     uiState: CourseOperationsUiState,
     onSearch: (String) -> Unit,
     onRegister: (Course) -> Unit,
-    onCreateCourse: (CreateRegisteredCourseInput, () -> Unit) -> Unit,
-    onUpdate: (UpdateRegisteredCourseInput, () -> Unit) -> Unit,
+    onCreateCourse: () -> Unit,
+    onEditCourse: (String) -> Unit,
     onChangeAttendance: (String, AttendanceCounter, Int) -> Unit,
     onDelete: (RegisteredCourse) -> Unit,
     onManageTags: () -> Unit,
 ) {
     key(selectedYear) {
         var query by rememberSaveable { mutableStateOf("") }
-        var creatingCourse by rememberSaveable { mutableStateOf(false) }
-        var editingCourseId by rememberSaveable { mutableStateOf<String?>(null) }
         var attendanceCourseId by rememberSaveable { mutableStateOf<String?>(null) }
         var deletingCourse by remember { mutableStateOf<RegisteredCourse?>(null) }
         val registeredCodes = registeredCourses.mapNotNullTo(mutableSetOf()) { it.code }
@@ -90,7 +86,7 @@ internal fun CourseOperationsSection(
         Text("Registered courses ($selectedYear)", style = MaterialTheme.typography.titleMedium)
         OutlinedButton(
             enabled = !uiState.isLoading,
-            onClick = { creatingCourse = true },
+            onClick = onCreateCourse,
         ) {
             Text("Create course")
         }
@@ -102,7 +98,7 @@ internal fun CourseOperationsSection(
                 course = course,
                 tagNames = tags.filter { it.id in course.tagIds }.map(Tag::name),
                 enabled = !uiState.isLoading,
-                onEdit = { editingCourseId = course.id },
+                onEdit = { onEditCourse(course.id) },
                 onAttendance = { attendanceCourseId = course.id },
                 onDelete = { deletingCourse = course },
             )
@@ -112,30 +108,6 @@ internal fun CourseOperationsSection(
             Text("Manage tags")
         }
 
-        if (creatingCourse) {
-            CourseEditorDialog(
-                course = null,
-                year = selectedYear,
-                tags = tags,
-                isSaving = uiState.isLoading,
-                saveFailed = uiState.operationFailed,
-                onCreate = onCreateCourse,
-                onUpdate = onUpdate,
-                onDismiss = { creatingCourse = false },
-            )
-        }
-        registeredCourses.firstOrNull { it.id == editingCourseId }?.let { course ->
-            CourseEditorDialog(
-                course = course,
-                year = selectedYear,
-                tags = tags,
-                isSaving = uiState.isLoading,
-                saveFailed = uiState.operationFailed,
-                onCreate = onCreateCourse,
-                onUpdate = onUpdate,
-                onDismiss = { editingCourseId = null },
-            )
-        }
         attendanceCourseId?.let { id ->
             registeredCourses.firstOrNull { it.id == id }?.let { course ->
                 CourseAttendanceDialog(

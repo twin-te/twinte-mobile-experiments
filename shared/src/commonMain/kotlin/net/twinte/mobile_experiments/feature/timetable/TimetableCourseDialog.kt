@@ -25,6 +25,7 @@ internal fun TimetableCourseDialog(
     onSelect: (String) -> Unit,
     onEdit: (String) -> Unit,
     onDismiss: () -> Unit,
+    canEdit: Boolean,
 ) {
     if (courses.isEmpty()) return
     val colors = TwinteTheme.colors
@@ -74,7 +75,7 @@ internal fun TimetableCourseDialog(
         },
         confirmButton = {
             if (single != null) {
-                TwinteButton("編集", onClick = { onEdit(single.id) }, selected = true)
+                TwinteButton("編集", onClick = { onEdit(single.id) }, selected = true, enabled = canEdit)
             }
         },
         dismissButton = { TwinteButton("閉じる", onClick = onDismiss) },

@@ -9,8 +9,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSerializable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import net.twinte.mobile_experiments.feature.timetable.TimetableScreen
+import kotlinx.serialization.Serializable
 import net.twinte.mobile_experiments.feature.timetable.TimetableCourseDialog
+import net.twinte.mobile_experiments.feature.timetable.TimetableScreen
 
 @Composable
 internal fun AppNavigation(
@@ -26,7 +27,14 @@ internal fun AppNavigation(
     val navigator = rememberAppNavigator()
     val operationsState = operations.copy(isLoading = operations.isLoading || authUiState.isLoading)
     var selectedCourseIds by rememberSerializable(timetable.selectedYear) { mutableStateOf(emptyList<String>()) }
-    var editingCourseId by rememberSaveable(timetable.selectedYear) { mutableStateOf<String?>(null) }
+    var editorTarget by rememberSerializable(timetable.selectedYear) {
+        mutableStateOf<CourseEditorTarget>(CourseEditorTarget.Closed)
+    }
+    fun openEditor(target: CourseEditorTarget) {
+        if (operationsState.isLoading) return
+        selectedCourseIds = emptyList()
+        editorTarget = target
+    }
     val refresh = {
         timetableStateHolder.refreshTimetable()
         timetableStateHolder.refreshDailyTimetable()
@@ -66,8 +74,8 @@ internal fun AppNavigation(
                     uiState = operationsState,
                     onSearch = timetableStateHolder::searchCourses,
                     onRegister = timetableStateHolder::registerCourse,
-                    onCreateCourse = timetableStateHolder::createCourseManually,
-                    onUpdate = timetableStateHolder::updateCourse,
+                    onCreateCourse = { openEditor(CourseEditorTarget.Create) },
+                    onEditCourse = { openEditor(CourseEditorTarget.Edit(it)) },
                     onChangeAttendance = timetableStateHolder::changeCourseAttendance,
                     onDelete = timetableStateHolder::deleteCourse,
                     onManageTags = navigator::openTags,
@@ -102,19 +110,28 @@ internal fun AppNavigation(
     TimetableCourseDialog(
         courses = selectedCourses,
         onSelect = { selectedCourseIds = listOf(it) },
-        onEdit = {
-            selectedCourseIds = emptyList()
-            editingCourseId = it
-        },
+        onEdit = { openEditor(CourseEditorTarget.Edit(it)) },
         onDismiss = { selectedCourseIds = emptyList() },
+        canEdit = !operationsState.isLoading,
     )
-    timetable.registeredCourses.firstOrNull { it.id == editingCourseId }?.let { course ->
+    val target = editorTarget
+    val course = (target as? CourseEditorTarget.Edit)?.let { editing ->
+        timetable.registeredCourses.firstOrNull { it.id == editing.courseId }
+    }
+    if (target == CourseEditorTarget.Create || course != null) {
         CourseEditorDialog(
             course = course, year = timetable.selectedYear, tags = timetable.tags,
             isSaving = operationsState.isLoading, saveFailed = operationsState.operationFailed,
             onCreate = timetableStateHolder::createCourseManually,
             onUpdate = timetableStateHolder::updateCourse,
-            onDismiss = { editingCourseId = null },
+            onDismiss = { editorTarget = CourseEditorTarget.Closed },
         )
     }
+}
+
+@Serializable
+private sealed interface CourseEditorTarget {
+    @Serializable data object Closed : CourseEditorTarget
+    @Serializable data object Create : CourseEditorTarget
+    @Serializable data class Edit(val courseId: String) : CourseEditorTarget
 }
