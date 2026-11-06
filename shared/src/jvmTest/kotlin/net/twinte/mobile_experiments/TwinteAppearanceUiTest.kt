@@ -91,6 +91,34 @@ class TwinteAppearanceUiTest {
     }
 
     @Test
+    fun periodRangeSeparatorIsVertical() = runSkikoComposeUiTest(
+        size = Size(1170f, 2532f), density = Density(3f),
+    ) {
+        setContent { TwinteTheme(darkTheme = false) { TimetablePreview() } }
+        val bounds = onNodeWithTag("period-range-1").fetchSemanticsNode().boundsInRoot
+        val pixels = captureToImage().toPixelMap()
+        var minX = pixels.width
+        var minY = pixels.height
+        var maxX = -1
+        var maxY = -1
+        for (y in bounds.top.toInt() until bounds.bottom.toInt()) {
+            for (x in bounds.left.toInt() until bounds.right.toInt()) {
+                if (pixels[x, y].red < 0.65f) {
+                    minX = minOf(minX, x)
+                    minY = minOf(minY, y)
+                    maxX = maxOf(maxX, x)
+                    maxY = maxOf(maxY, y)
+                }
+            }
+        }
+        assertTrue(maxX >= 0, "The range separator must be visible")
+        assertTrue(
+            maxY - minY > maxX - minX,
+            "The tilde must be taller than it is wide: ${maxX - minX + 1}x${maxY - minY + 1}",
+        )
+    }
+
+    @Test
     fun logoIsMonochromeOnlyInDarkTheme() {
         listOf(false, true).forEach { dark ->
             runSkikoComposeUiTest(size = Size(390f, 844f), density = Density(1f)) {
