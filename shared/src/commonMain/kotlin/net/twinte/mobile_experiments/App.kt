@@ -111,6 +111,7 @@ fun App(
                 onRegisterCourse = timetableStateHolder::registerCourse,
                 onCreateCourse = timetableStateHolder::createCourseManually,
                 onUpdateCourse = timetableStateHolder::updateCourse,
+                onChangeCourseAttendance = timetableStateHolder::changeCourseAttendance,
                 onDeleteCourse = timetableStateHolder::deleteCourse,
                 onCreateTag = timetableStateHolder::createTag,
                 onUpdateTag = timetableStateHolder::updateTag,

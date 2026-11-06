@@ -235,6 +235,14 @@ internal class TimetableStateHolder(
         }
     }
 
+    fun changeCourseAttendance(courseId: String, counter: AttendanceCounter, delta: Int) {
+        if (accountId == null || (delta != -1 && delta != 1)) return
+        val course = timetableSnapshot.courses.firstOrNull { it.id == courseId } ?: return
+        val newValue = counter.value(course).toLong() + delta
+        if (newValue !in 0..Int.MAX_VALUE.toLong()) return
+        updateCourse(counter.updateInput(courseId, newValue.toInt()))
+    }
+
     fun deleteCourse(course: RegisteredCourse) {
         val accountId = accountId ?: return
         launchCourseOperation("Deleting ${course.name}...") {
