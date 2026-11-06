@@ -1,5 +1,7 @@
 package net.twinte.mobile_experiments.feature.timetable
 
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.Month
 import net.twinte.mobile_experiments.core.domain.Day
 import net.twinte.mobile_experiments.core.domain.Module
 import net.twinte.mobile_experiments.core.domain.RegisteredCourse
@@ -8,6 +10,14 @@ internal val timetableModules = listOf(
     Module.SpringA, Module.SpringB, Module.SpringC, Module.FallA, Module.FallB, Module.FallC,
 )
 internal val timetableDays = listOf(Day.Monday, Day.Tuesday, Day.Wednesday, Day.Thursday, Day.Friday)
+
+internal fun calendarModuleToTimetableModule(module: Module?, date: LocalDate): Module? = when (module) {
+    null, Module.Unknown -> null
+    Module.SummerVacation -> Module.SpringC
+    Module.WinterVacation -> if (date.month == Month.DECEMBER) Module.FallB else Module.FallC
+    Module.SpringVacation -> if (date.month == Month.MARCH) Module.FallC else Module.SpringA
+    else -> module
+}
 
 internal data class SpecialCourseItem(
     val id: String,

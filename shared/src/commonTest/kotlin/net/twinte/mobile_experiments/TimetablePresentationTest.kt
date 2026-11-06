@@ -1,15 +1,38 @@
 package net.twinte.mobile_experiments
 
+import kotlinx.datetime.LocalDate
 import net.twinte.mobile_experiments.core.domain.CourseSchedule
 import net.twinte.mobile_experiments.core.domain.Day
 import net.twinte.mobile_experiments.core.domain.Module
 import net.twinte.mobile_experiments.core.domain.RegisteredCourse
+import net.twinte.mobile_experiments.feature.timetable.calendarModuleToTimetableModule
 import net.twinte.mobile_experiments.feature.timetable.specialCourseGroups
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 
 class TimetablePresentationTest {
+    @Test
+    fun calendarModulesMapToTheSameDisplaySemesterAsTheWeb() {
+        val cases = listOf(
+            Triple(Module.SummerVacation, LocalDate(2026, 8, 15), Module.SpringC),
+            Triple(Module.WinterVacation, LocalDate(2026, 12, 28), Module.FallB),
+            Triple(Module.WinterVacation, LocalDate(2027, 1, 3), Module.FallC),
+            Triple(Module.SpringVacation, LocalDate(2027, 3, 25), Module.FallC),
+            Triple(Module.SpringVacation, LocalDate(2027, 4, 3), Module.SpringA),
+        )
+        cases.forEach { (calendar, date, expected) ->
+            assertEquals(expected, calendarModuleToTimetableModule(calendar, date))
+        }
+        val date = LocalDate(2026, 11, 7)
+        listOf(Module.SpringA, Module.SpringB, Module.SpringC, Module.FallA, Module.FallB, Module.FallC).forEach {
+            assertEquals(it, calendarModuleToTimetableModule(it, date))
+        }
+        assertNull(calendarModuleToTimetableModule(null, date))
+        assertNull(calendarModuleToTimetableModule(Module.Unknown, date))
+    }
+
     @Test
     fun specialCoursesKeepTheirModulesAndLocationsWithoutDuplicatingTheCourse() {
         val course = course("intensive").copy(schedules = listOf(

@@ -5,6 +5,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
@@ -28,6 +29,7 @@ import net.twinte.mobile_experiments.core.timetable.TimetableSnapshot
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
@@ -35,6 +37,73 @@ import kotlin.time.Instant
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TimetableStateHolderTest {
+    @Test
+    fun initialModuleWaitsForTheFirstKnownCalendarWithoutChangingSelectedYear() = runTest {
+        val date = LocalDate(2026, 11, 7)
+        val daily = FakeDailyTimetableService()
+        val holder = TimetableStateHolder(
+            FakeTimetableService(), daily, date, backgroundScope, {}, initialYear = 2025,
+        )
+        holder.bind("user", date)
+        runCurrent()
+        assertNull(holder.moduleForRestoration)
+        daily.emitSnapshot(dailySnapshot(date, Instant.fromEpochMilliseconds(0), Module.Unknown))
+        runCurrent()
+        assertNull(holder.moduleForRestoration)
+
+        daily.emitSnapshot(dailySnapshot(date, Instant.fromEpochMilliseconds(0), Module.FallB))
+        runCurrent()
+        assertEquals(Module.FallB, holder.timetableUiState.value.selectedModule)
+        assertEquals(2025, holder.timetableUiState.value.selectedYear)
+        assertEquals(Module.FallB, holder.moduleForRestoration)
+    }
+
+    @Test
+    fun manualAndRestoredModulesAreNotOverwrittenByCalendarUpdates() = runTest {
+        val date = LocalDate(2026, 11, 7)
+        listOf(Module.SpringA, Module.FallA).forEach { selected ->
+            val daily = FakeDailyTimetableService()
+            val holder = TimetableStateHolder(
+                FakeTimetableService(), daily, date, backgroundScope, {},
+                initialModule = if (selected == Module.FallA) selected else null,
+            )
+            holder.bind("user", date)
+            if (selected == Module.SpringA) holder.selectModule(selected)
+            runCurrent()
+            daily.emitSnapshot(dailySnapshot(date, Instant.fromEpochMilliseconds(0), Module.FallB))
+            runCurrent()
+            assertEquals(selected, holder.timetableUiState.value.selectedModule)
+            assertEquals(selected, holder.moduleForRestoration)
+        }
+    }
+
+    @Test
+    fun cachedVacationInitializesDisplaySemesterAndLaterUpdatesKeepTheSelection() = runTest {
+        val date = LocalDate(2026, 8, 15)
+        val daily = FakeDailyTimetableService(
+            initialSnapshot = dailySnapshot(date, Instant.fromEpochMilliseconds(0), Module.SummerVacation),
+        )
+        val holder = TimetableStateHolder(FakeTimetableService(), daily, date, backgroundScope, {})
+        holder.bind("user", date)
+        runCurrent()
+        assertEquals(Module.SpringC, holder.timetableUiState.value.selectedModule)
+        assertEquals(Module.SummerVacation, holder.dailyTimetableUiState.value.module)
+        assertEquals(Module.SpringC, holder.dailyTimetableUiState.value.currentModule)
+        daily.emitSnapshot(dailySnapshot(date, Instant.fromEpochMilliseconds(1), Module.FallA))
+        runCurrent()
+        assertEquals(Module.SpringC, holder.timetableUiState.value.selectedModule)
+    }
+
+    @Test
+    fun currentVacationSemesterUsesTheAcademicYear() = runTest {
+        val date = LocalDate(2027, 1, 3)
+        val holder = TimetableStateHolder(FakeTimetableService(), FakeDailyTimetableService(), date, backgroundScope, {})
+        holder.selectPreviousYear()
+        holder.selectCurrentModule(Module.WinterVacation)
+        assertEquals(2026, holder.timetableUiState.value.selectedYear)
+        assertEquals(Module.FallC, holder.timetableUiState.value.selectedModule)
+    }
+
     @Test
     fun selectsCoursesByAcademicYearAndModule() = runTest {
         val timetableService = FakeTimetableService(
@@ -925,12 +994,17 @@ internal class FakeDailyTimetableService(
     private val refreshOperation: suspend (LocalDate) -> Unit = {},
     private val initialSnapshot: DailyTimetableSnapshot? = null,
 ) : DailyTimetableService {
+    private val snapshots = MutableStateFlow(initialSnapshot)
     val observedDates = mutableListOf<LocalDate>()
     val refreshedDates = mutableListOf<LocalDate>()
 
     override fun observe(accountId: String, date: LocalDate): Flow<DailyTimetableSnapshot?> {
         observedDates += date
-        return MutableStateFlow(initialSnapshot?.takeIf { it.timetable.date == date })
+        return snapshots.map { snapshot -> snapshot?.takeIf { it.timetable.date == date } }
+    }
+
+    fun emitSnapshot(snapshot: DailyTimetableSnapshot?) {
+        snapshots.value = snapshot
     }
 
     override suspend fun refresh(accountId: String, date: LocalDate) {
@@ -940,11 +1014,11 @@ internal class FakeDailyTimetableService(
     }
 }
 
-private fun dailySnapshot(date: LocalDate, syncedAt: Instant): DailyTimetableSnapshot =
+private fun dailySnapshot(date: LocalDate, syncedAt: Instant, module: Module = Module.SpringA): DailyTimetableSnapshot =
     DailyTimetableSnapshot(
         timetable = DailyTimetable(
             date = date,
-            module = Module.SpringA,
+            module = module,
             effectiveDay = Day.Friday,
             eventLabel = "Normal",
             slots = emptyList(),

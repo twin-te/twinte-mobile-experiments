@@ -77,7 +77,7 @@ class TimetableHomeUiTest {
         setContent { restoration.Content { TwinteTheme { TestAuthenticatedApp() } } }
         onNodeWithContentDescription("学期を選択").performClick()
         onNodeWithTag("module-menu").assertIsDisplayed()
-        onNode(hasText("春A") and hasAnyAncestor(hasTestTag("module-menu"))).assertIsSelected()
+        onNode(hasText("秋B") and hasAnyAncestor(hasTestTag("module-menu"))).assertIsSelected()
         onNodeWithText("秋C").performClick()
         onNodeWithTag("module-menu").assertDoesNotExist()
         onNodeWithText("秋C").assertIsDisplayed()
@@ -159,7 +159,7 @@ class TimetableHomeUiTest {
                 onNodeWithContentDescription("学期を選択").performClick()
                 onNodeWithTag("module-menu").assertIsDisplayed()
                 saveImage("$prefix-module-menu")
-                onNode(hasText("春A") and hasAnyAncestor(hasTestTag("module-menu"))).performClick()
+                onNode(hasText("秋B") and hasAnyAncestor(hasTestTag("module-menu"))).performClick()
                 onNodeWithContentDescription("メニュー").performClick()
                 onNodeWithTag("destination-Courses").assertIsDisplayed()
                 saveImage("$prefix-menu")

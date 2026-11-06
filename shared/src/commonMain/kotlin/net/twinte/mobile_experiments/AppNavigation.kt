@@ -9,7 +9,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSerializable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlinx.datetime.number
 import net.twinte.mobile_experiments.feature.timetable.TimetableScreen
 import net.twinte.mobile_experiments.feature.timetable.TimetableCourseDialog
 
@@ -44,9 +43,9 @@ internal fun AppNavigation(
             AppRoute.Timetable -> TimetableScreen(
                 uiState = timetable.copy(isLoading = timetable.isLoading || daily.isLoading || authUiState.isLoading),
                 onRefresh = refresh,
-                currentModule = daily.module,
-                currentYear = if (daily.date.month.number >= 4) daily.date.year else daily.date.year - 1,
-                onCurrentModule = { daily.module?.let(timetableStateHolder::selectCurrentModule) },
+                currentModule = daily.currentModule,
+                currentYear = daily.date.academicYear,
+                onCurrentModule = { daily.currentModule?.let(timetableStateHolder::selectCurrentModule) },
                 onSelectModule = timetableStateHolder::selectModule,
                 onOpenCourses = { selectedCourseIds = it },
             )

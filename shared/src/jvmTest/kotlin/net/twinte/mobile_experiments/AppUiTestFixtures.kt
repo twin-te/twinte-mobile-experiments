@@ -18,6 +18,7 @@ import net.twinte.mobile_experiments.core.domain.UserAuthentication
 import net.twinte.mobile_experiments.core.timetable.DailyCourseSlot
 import net.twinte.mobile_experiments.core.timetable.DailyTimetable
 import net.twinte.mobile_experiments.core.timetable.DailyTimetableSnapshot
+import net.twinte.mobile_experiments.core.timetable.DailyTimetableService
 import net.twinte.mobile_experiments.core.timetable.TimetableSnapshot
 import kotlin.time.Instant
 
@@ -33,6 +34,8 @@ internal fun TestAuthenticatedApp(
     auth: AuthUiState = testSignedIn(),
     withCourse: Boolean = false,
     service: FakeTimetableService? = null,
+    dailyService: DailyTimetableService? = null,
+    date: LocalDate = LocalDate(2026, 11, 6),
 ) {
     val scope = rememberCoroutineScope()
     val authStateHolder = remember(scope) {
@@ -48,11 +51,11 @@ internal fun TestAuthenticatedApp(
             ),
         )
     }
-    val dailyService = remember {
-        FakeDailyTimetableService(
+    val daily = remember(dailyService, date) {
+        dailyService ?: FakeDailyTimetableService(
             initialSnapshot = DailyTimetableSnapshot(
                 DailyTimetable(
-                    LocalDate(2026, 11, 6), Module.FallB, Day.Friday, "通常日課",
+                    date, Module.FallB, Day.Friday, "通常日課",
                     listOf(DailyCourseSlot.Course(2, "10:10", "11:25", "course", "情報メディア実験A", "3A204")),
                 ),
                 Instant.parse("2026-11-06T00:00:00Z"),
@@ -60,11 +63,11 @@ internal fun TestAuthenticatedApp(
         )
     }
     val timetableStateHolder = rememberTimetableStateHolder(
-        timetableService, dailyService, LocalDate(2026, 11, 6), scope, authStateHolder::handleExternalFailure,
+        timetableService, daily, date, scope, authStateHolder::handleExternalFailure,
     )
     val accountId = (auth.authState as? AuthState.LoggedIn)?.user?.id
-    LaunchedEffect(accountId, timetableStateHolder) {
-        timetableStateHolder.bind(accountId, LocalDate(2026, 11, 6))
+    LaunchedEffect(accountId, timetableStateHolder, date) {
+        timetableStateHolder.bind(accountId, date)
     }
     AppNavigation(auth, authStateHolder, timetableStateHolder, true, true)
 }
