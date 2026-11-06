@@ -83,6 +83,7 @@ internal fun AppScaffold(
     onRefresh: () -> Unit,
     isRefreshing: Boolean,
     navigator: AppNavigator = rememberAppNavigator(),
+    detailActions: @Composable (AppRoute.CourseDetail) -> Unit = {},
     content: @Composable (AppRoute) -> Unit,
 ) {
     val colors = TwinteTheme.colors
@@ -171,7 +172,11 @@ internal fun AppScaffold(
                                 )
                             } else {
                                 Text(
-                                    if (navigator.currentRoute == AppRoute.Tags) "タグ" else navigator.selectedTab.title,
+                                    when (navigator.currentRoute) {
+                                        AppRoute.Tags -> "タグ"
+                                        is AppRoute.CourseDetail -> "授業詳細"
+                                        else -> navigator.selectedTab.title
+                                    },
                                     color = colors.text, fontWeight = FontWeight.Medium,
                                     maxLines = 2, textAlign = TextAlign.Center,
                                 )
@@ -187,6 +192,8 @@ internal fun AppScaffold(
                                     calendarLabel ?: "日課未取得", color = colors.muted, fontSize = 10.sp,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 )
+                            } else if (navigator.currentRoute is AppRoute.CourseDetail) {
+                                detailActions(navigator.currentRoute as AppRoute.CourseDetail)
                             } else if (navigator.isNested) {
                                 TwinteIconButton("メニュー", Lucide.Menu, { scope.launch { drawer.open() } })
                             }
@@ -211,6 +218,7 @@ internal fun AppScaffold(
                     entry<AppRoute.Courses> { BottomInsetScreen { content(it) } }
                     entry<AppRoute.Account> { BottomInsetScreen { content(it) } }
                     entry<AppRoute.Tags> { BottomInsetScreen { content(it) } }
+                    entry<AppRoute.CourseDetail> { BottomInsetScreen { content(it) } }
                 }),
                 onBack = navigator::goBack,
                 modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()

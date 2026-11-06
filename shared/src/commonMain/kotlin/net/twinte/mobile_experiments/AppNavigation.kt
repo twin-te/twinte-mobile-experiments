@@ -13,7 +13,10 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import net.twinte.mobile_experiments.feature.timetable.TimetableCourseDialog
+import net.twinte.mobile_experiments.feature.course.CourseDeleteDialog
+import net.twinte.mobile_experiments.feature.course.CourseDetailActions
+import net.twinte.mobile_experiments.feature.course.CourseDetailScreen
+import net.twinte.mobile_experiments.feature.timetable.TimetableCourseSelectionDialog
 import net.twinte.mobile_experiments.feature.timetable.TimetableScreen
 
 @Composable
@@ -35,6 +38,11 @@ internal fun AppNavigation(
         mutableStateOf<CourseEditorTarget>(CourseEditorTarget.Closed)
     }
     val coursesScroll = rememberSaveable(timetable.selectedYear, saver = ScrollState.Saver) { ScrollState(0) }
+    var deletingCourseId by rememberSaveable(timetable.selectedYear) { mutableStateOf<String?>(null) }
+    fun openCourseDetail(courseId: String) {
+        selectedCourseIds = emptyList()
+        navigator.openCourseDetail(courseId)
+    }
     fun openEditor(target: CourseEditorTarget) {
         if (operationsState.isLoading) return
         selectedCourseIds = emptyList()
@@ -44,13 +52,30 @@ internal fun AppNavigation(
         timetableStateHolder.refreshTimetable()
         timetableStateHolder.refreshDailyTimetable()
     }
+    val previousYear = {
+        navigator.dismissCourseDetails()
+        timetableStateHolder.selectPreviousYear()
+    }
+    val nextYear = {
+        navigator.dismissCourseDetails()
+        timetableStateHolder.selectNextYear()
+    }
 
     AppScaffold(
         authUiState = authUiState, navigator = navigator,
         selectedYear = timetable.selectedYear, calendarDate = daily.date, calendarLabel = daily.eventLabel,
-        onPreviousYear = timetableStateHolder::selectPreviousYear,
-        onNextYear = timetableStateHolder::selectNextYear,
+        onPreviousYear = previousYear,
+        onNextYear = nextYear,
         onRefresh = refresh, isRefreshing = timetable.isLoading || daily.isLoading,
+        detailActions = { route ->
+            timetable.registeredCourses.firstOrNull { it.id == route.courseId }?.let { course ->
+                CourseDetailActions(
+                    courseId = course.id, enabled = !operationsState.isLoading,
+                    onEdit = { openEditor(CourseEditorTarget.Edit(course.id)) },
+                    onDelete = { deletingCourseId = course.id },
+                )
+            }
+        },
     ) { route ->
         when (route) {
             AppRoute.Timetable -> TimetableScreen(
@@ -60,7 +85,9 @@ internal fun AppNavigation(
                 currentYear = daily.date.academicYear,
                 onCurrentModule = { daily.currentModule?.let(timetableStateHolder::selectCurrentModule) },
                 onSelectModule = timetableStateHolder::selectModule,
-                onOpenCourses = { selectedCourseIds = it },
+                onOpenCourses = { ids ->
+                    if (ids.size == 1) openCourseDetail(ids.single()) else selectedCourseIds = ids
+                },
                 onOpenEmptySlot = {
                     navigator.openCourseSearch()
                     scope.launch { coursesScroll.scrollTo(0) }
@@ -73,8 +100,8 @@ internal fun AppNavigation(
             AppRoute.Courses -> ScreenColumn(scrollState = coursesScroll) {
                 TimetableYearSelector(
                     year = timetable.selectedYear,
-                    onPreviousYear = timetableStateHolder::selectPreviousYear,
-                    onNextYear = timetableStateHolder::selectNextYear,
+                    onPreviousYear = previousYear,
+                    onNextYear = nextYear,
                 )
                 CourseOperationsSection(
                     selectedYear = timetable.selectedYear,
@@ -86,7 +113,7 @@ internal fun AppNavigation(
                     onCreateCourse = { openEditor(CourseEditorTarget.Create) },
                     onEditCourse = { openEditor(CourseEditorTarget.Edit(it)) },
                     onChangeAttendance = timetableStateHolder::changeCourseAttendance,
-                    onDelete = timetableStateHolder::deleteCourse,
+                    onDelete = { timetableStateHolder.deleteCourse(it) },
                     onManageTags = navigator::openTags,
                 )
             }
@@ -113,16 +140,37 @@ internal fun AppNavigation(
                     onMove = timetableStateHolder::moveTag,
                 )
             }
+            is AppRoute.CourseDetail -> CourseDetailScreen(
+                course = timetable.registeredCourses.firstOrNull { it.id == route.courseId },
+                tags = timetable.tags, isCacheLoaded = timetable.isCacheLoaded,
+                isWorking = operationsState.isLoading, operationFailed = operationsState.operationFailed,
+                onChangeAttendance = { counter, delta ->
+                    timetableStateHolder.changeCourseAttendance(route.courseId, counter, delta)
+                },
+                onToggleTag = { timetableStateHolder.toggleCourseTag(route.courseId, it) },
+                onCreateTag = { name, onCreated -> timetableStateHolder.createTagForCourse(route.courseId, name, onCreated) },
+                onBack = navigator::goBack,
+            )
         }
     }
     val selectedCourses = timetable.registeredCourses.filter { it.id in selectedCourseIds }
-    TimetableCourseDialog(
+    TimetableCourseSelectionDialog(
         courses = selectedCourses,
-        onSelect = { selectedCourseIds = listOf(it) },
-        onEdit = { openEditor(CourseEditorTarget.Edit(it)) },
+        onSelect = ::openCourseDetail,
         onDismiss = { selectedCourseIds = emptyList() },
-        canEdit = !operationsState.isLoading,
     )
+    timetable.registeredCourses.firstOrNull { it.id == deletingCourseId }?.let { course ->
+        CourseDeleteDialog(
+            course = course, isWorking = operationsState.isLoading, operationFailed = operationsState.operationFailed,
+            onDelete = {
+                timetableStateHolder.deleteCourse(course) {
+                    deletingCourseId = null
+                    navigator.dismissCourseDetails(course.id)
+                }
+            },
+            onDismiss = { deletingCourseId = null },
+        )
+    }
     val target = editorTarget
     val course = (target as? CourseEditorTarget.Edit)?.let { editing ->
         timetable.registeredCourses.firstOrNull { it.id == editing.courseId }

@@ -44,6 +44,7 @@ internal data class TimetableUiState(
     val tags: List<Tag> = emptyList(),
     val lastSuccessfulSyncAt: Instant? = null,
     val refreshFailed: Boolean = false,
+    val isCacheLoaded: Boolean = false,
 )
 
 internal data class CourseOperationsUiState(
@@ -179,6 +180,7 @@ internal class TimetableStateHolder(
             selectedModule = module,
             isLoading = current.isLoading,
             refreshFailed = current.refreshFailed,
+            isCacheLoaded = current.isCacheLoaded,
         )
     }
 
@@ -266,10 +268,12 @@ internal class TimetableStateHolder(
         updateCourse(counter.updateInput(courseId, newValue.toInt()))
     }
 
-    fun deleteCourse(course: RegisteredCourse) {
+    fun deleteCourse(course: RegisteredCourse, onSuccess: () -> Unit = {}) {
         val accountId = accountId ?: return
         launchCourseOperation("Deleting ${course.name}...") {
             timetableService.deleteCourse(accountId, course.id)
+            currentCoroutineContext().ensureActive()
+            onSuccess()
             completeCourseMutation(accountId, "Deleted ${course.name}")
         }
     }
@@ -281,6 +285,29 @@ internal class TimetableStateHolder(
             _courseOperationsUiState.update {
                 it.copy(message = "Created ${tag.name}", isLoading = false)
             }
+        }
+    }
+
+    fun toggleCourseTag(courseId: String, tagId: String) {
+        val course = timetableSnapshot.courses.firstOrNull { it.id == courseId } ?: return
+        if (timetableSnapshot.tags.none { it.id == tagId }) return
+        val tagIds = if (tagId in course.tagIds) course.tagIds - tagId else course.tagIds + tagId
+        updateCourse(UpdateRegisteredCourseInput(courseId, tagIds = tagIds))
+    }
+
+    fun createTagForCourse(courseId: String, name: String, onCreated: () -> Unit) {
+        val accountId = accountId ?: return
+        val trimmedName = name.trim().takeIf(String::isNotEmpty) ?: return
+        if (timetableSnapshot.courses.none { it.id == courseId }) return
+        launchCourseOperation("Creating tag...") {
+            val tag = timetableService.createTag(accountId, trimmedName)
+            currentCoroutineContext().ensureActive()
+            // Creation and assignment are separate requests; keep a created tag available if assignment fails.
+            onCreated()
+            val course = timetableSnapshot.courses.firstOrNull { it.id == courseId }
+                ?: error("Course is no longer available")
+            timetableService.updateCourse(accountId, UpdateRegisteredCourseInput(courseId, tagIds = course.tagIds + tag.id))
+            completeCourseMutation(accountId, "Created ${tag.name}")
         }
     }
 
@@ -490,6 +517,7 @@ internal class TimetableStateHolder(
             selectedModule = current.selectedModule,
             isLoading = current.isLoading,
             refreshFailed = current.refreshFailed,
+            isCacheLoaded = current.isCacheLoaded,
         )
     }
 }
@@ -532,6 +560,7 @@ private fun TimetableSnapshot.toUiState(
     selectedModule: Module,
     isLoading: Boolean = false,
     refreshFailed: Boolean = false,
+    isCacheLoaded: Boolean = true,
 ): TimetableUiState {
     val selectedCourses = courses.filter { it.year == selectedYear }
     val cells = selectedCourses
@@ -556,5 +585,6 @@ private fun TimetableSnapshot.toUiState(
         tags = tags.sortedBy(Tag::order),
         lastSuccessfulSyncAt = lastSuccessfulSyncAt,
         refreshFailed = refreshFailed,
+        isCacheLoaded = isCacheLoaded,
     )
 }

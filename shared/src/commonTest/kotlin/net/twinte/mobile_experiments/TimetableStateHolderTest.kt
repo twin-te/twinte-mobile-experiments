@@ -38,6 +38,97 @@ import kotlin.time.Instant
 @OptIn(ExperimentalCoroutinesApi::class)
 class TimetableStateHolderTest {
     @Test
+    fun tagsAreToggledWithOnlyTheTagIdsPatch() = runTest {
+        val registeredCourse = course(2026, "Seminar", CourseSchedule(Module.FallB, Day.Monday, 2, ""))
+            .copy(tagIds = listOf("first"))
+        val service = FakeTimetableService(initialSnapshot = TimetableSnapshot(
+            courses = listOf(registeredCourse), tags = listOf(Tag("first", "First", 0), Tag("second", "Second", 1)),
+        ))
+        val holder = TimetableStateHolder(service, FakeDailyTimetableService(), LocalDate(2026, 11, 6), backgroundScope, {})
+        holder.bind("user", LocalDate(2026, 11, 6))
+        runCurrent()
+        holder.toggleCourseTag(registeredCourse.id, "second")
+        runCurrent()
+        assertEquals(UpdateRegisteredCourseInput(registeredCourse.id, tagIds = listOf("first", "second")), service.updatedInputs[0])
+        holder.toggleCourseTag(registeredCourse.id, "first")
+        runCurrent()
+        assertEquals(listOf("second"), service.updatedInputs[1].tagIds)
+        holder.toggleCourseTag(registeredCourse.id, "missing")
+        runCurrent()
+        assertEquals(2, service.updatedInputs.size)
+    }
+
+    @Test
+    fun aCreatedTagRemainsAvailableIfItsCourseAssignmentFails() = runTest {
+        val registeredCourse = course(2026, "Seminar", CourseSchedule(Module.FallB, Day.Monday, 2, ""))
+            .copy(tagIds = listOf("first"))
+        val service = FakeTimetableService(
+            initialSnapshot = TimetableSnapshot(courses = listOf(registeredCourse), tags = listOf(Tag("first", "First", 0))),
+            updateOperation = { error("offline") },
+        )
+        val holder = TimetableStateHolder(service, FakeDailyTimetableService(), LocalDate(2026, 11, 6), backgroundScope, {})
+        holder.bind("user", LocalDate(2026, 11, 6))
+        runCurrent()
+        var created = false
+        holder.createTagForCourse(registeredCourse.id, "  New tag  ") { created = true }
+        runCurrent()
+        assertTrue(created)
+        assertEquals(listOf("New tag"), service.createdTagNames)
+        assertEquals(listOf("first", "created"), service.updatedInputs.single().tagIds)
+        assertTrue(holder.courseOperationsUiState.value.operationFailed)
+        assertEquals(listOf("first"), holder.timetableUiState.value.registeredCourses.single().tagIds)
+        assertTrue(holder.timetableUiState.value.tags.any { it.id == "created" })
+    }
+
+    @Test
+    fun changingSelectionDoesNotMarkTheCacheLoadedBeforeItsFirstEmission() = runTest {
+        val holder = TimetableStateHolder(
+            FakeTimetableService(), FakeDailyTimetableService(), LocalDate(2026, 11, 6), backgroundScope, {},
+        )
+        holder.bind("user", LocalDate(2026, 11, 6))
+        holder.selectModule(Module.FallA)
+        holder.selectPreviousYear()
+        assertFalse(holder.timetableUiState.value.isCacheLoaded)
+        runCurrent()
+        assertTrue(holder.timetableUiState.value.isCacheLoaded)
+        holder.bind("other-user", LocalDate(2026, 11, 6))
+        assertFalse(holder.timetableUiState.value.isCacheLoaded)
+    }
+
+    @Test
+    fun successfulDeletionNotifiesBeforeTheDailyRefreshAndFailureDoesNotNotify() = runTest {
+        val pendingRefresh = CompletableDeferred<Unit>()
+        val registeredCourse = course(2026, "Seminar", CourseSchedule(Module.FallB, Day.Monday, 2, ""))
+        var completed = false
+        val holder = TimetableStateHolder(
+            FakeTimetableService(initialSnapshot = TimetableSnapshot(courses = listOf(registeredCourse))),
+            FakeDailyTimetableService(refreshOperation = { pendingRefresh.await() }),
+            LocalDate(2026, 11, 6), backgroundScope, {},
+        )
+        holder.bind("user", LocalDate(2026, 11, 6))
+        runCurrent()
+        holder.deleteCourse(registeredCourse) { completed = true }
+        runCurrent()
+        assertTrue(completed)
+        assertTrue(holder.courseOperationsUiState.value.isLoading)
+        pendingRefresh.complete(Unit)
+        runCurrent()
+        assertFalse(holder.courseOperationsUiState.value.isLoading)
+
+        val failureHolder = TimetableStateHolder(
+            FakeTimetableService(deleteOperation = { error("offline") }), FakeDailyTimetableService(),
+            LocalDate(2026, 11, 6), backgroundScope, {},
+        )
+        failureHolder.bind("user", LocalDate(2026, 11, 6))
+        runCurrent()
+        completed = false
+        failureHolder.deleteCourse(registeredCourse) { completed = true }
+        runCurrent()
+        assertFalse(completed)
+        assertTrue(failureHolder.courseOperationsUiState.value.operationFailed)
+    }
+
+    @Test
     fun initialModuleWaitsForTheFirstKnownCalendarWithoutChangingSelectedYear() = runTest {
         val date = LocalDate(2026, 11, 7)
         val daily = FakeDailyTimetableService()
@@ -873,6 +964,8 @@ internal class FakeTimetableService(
     private val manualCreateOperation: suspend () -> Unit = {},
     private val updateOperation: suspend () -> Unit = {},
     private val snapshotsByAccount: Map<String, MutableStateFlow<TimetableSnapshot>> = emptyMap(),
+    private val deleteOperation: suspend () -> Unit = {},
+    private val createTagOperation: suspend () -> Unit = {},
 ) : TimetableService {
     private val snapshots = MutableStateFlow(initialSnapshot)
     val refreshedAccountIds = mutableListOf<String>()
@@ -930,16 +1023,34 @@ internal class FakeTimetableService(
         updatedInputs += input
         updateOperation()
         val course = snapshots.value.courses.first { it.id == input.id }
-        return course.copy(name = input.name ?: course.name)
+        val updated = course.copy(
+            name = input.name ?: course.name,
+            instructors = input.instructors ?: course.instructors,
+            credit = input.credit ?: course.credit,
+            methods = input.methods ?: course.methods,
+            schedules = input.schedules ?: course.schedules,
+            memo = input.memo ?: course.memo,
+            tagIds = input.tagIds ?: course.tagIds,
+            attendance = input.attendance ?: course.attendance,
+            absence = input.absence ?: course.absence,
+            late = input.late ?: course.late,
+        )
+        snapshots.value = snapshots.value.copy(courses = snapshots.value.courses.map { if (it.id == input.id) updated else it })
+        return updated
     }
 
     override suspend fun deleteCourse(accountId: String, id: String) {
         deletedCourseIds += id
+        deleteOperation()
+        snapshots.value = snapshots.value.copy(courses = snapshots.value.courses.filterNot { it.id == id })
     }
 
     override suspend fun createTag(accountId: String, name: String): Tag {
         createdTagNames += name
-        return Tag("created", name, 0)
+        createTagOperation()
+        val tag = Tag("created", name, 0)
+        snapshots.value = snapshots.value.copy(tags = snapshots.value.tags.filterNot { it.id == tag.id } + tag)
+        return tag
     }
 
     override suspend fun updateTag(accountId: String, id: String, name: String): Tag {

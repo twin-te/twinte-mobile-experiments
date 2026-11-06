@@ -25,6 +25,7 @@ internal sealed interface AppRoute : NavKey {
     @Serializable data object Courses : AppRoute
     @Serializable data object Account : AppRoute
     @Serializable data object Tags : AppRoute
+    @Serializable data class CourseDetail(val courseId: String) : AppRoute
 }
 
 internal enum class AppTab(val root: AppRoute, val title: String) {
@@ -43,6 +44,7 @@ internal val appRoutesConfiguration = SavedStateConfiguration {
             subclass(AppRoute.Courses::class, AppRoute.Courses.serializer())
             subclass(AppRoute.Account::class, AppRoute.Account.serializer())
             subclass(AppRoute.Tags::class, AppRoute.Tags.serializer())
+            subclass(AppRoute.CourseDetail::class, AppRoute.CourseDetail.serializer())
         }
     }
 }
@@ -78,6 +80,18 @@ internal class AppNavigator(
         selectTab(AppTab.Courses)
         val stack = stacks.getValue(AppTab.Courses)
         while (stack.size > 1) stack.removeAt(stack.lastIndex)
+    }
+
+    fun openCourseDetail(courseId: String) {
+        val stack = stacks.getValue(selectedTab)
+        val route = AppRoute.CourseDetail(courseId)
+        if (stack.last() != route) stack.add(route)
+    }
+
+    fun dismissCourseDetails(courseId: String? = null) {
+        stacks.values.forEach { stack ->
+            stack.removeAll { it is AppRoute.CourseDetail && (courseId == null || it.courseId == courseId) }
+        }
     }
 
     fun goBack() {

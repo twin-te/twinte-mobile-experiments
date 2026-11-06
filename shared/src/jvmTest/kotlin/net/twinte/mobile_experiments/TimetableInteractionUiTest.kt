@@ -46,16 +46,20 @@ class TimetableInteractionUiTest {
         onNodeWithContentDescription("メニュー").performClick()
         onNodeWithTag("destination-Timetable").performClick()
         onNodeWithTag("slot-Monday-2").performClick()
-        onNode(hasText("情報メディア実験A") and hasAnyAncestor(hasTestTag("course-details"))).performClick()
-        onNodeWithText("編集").assertIsNotEnabled()
-        onNodeWithText("閉じる").assertIsEnabled().performClick()
-        onNodeWithTag("course-details").assertDoesNotExist()
+        onNode(hasText("情報メディア実験A") and hasAnyAncestor(hasTestTag("course-selection"))).performClick()
+        onNodeWithContentDescription("授業の操作").performClick()
+        onNodeWithText("編集する").assertIsNotEnabled()
+        onNodeWithContentDescription("授業の操作").performClick()
+        onNodeWithContentDescription("Back").assertIsEnabled().performClick()
+        onNodeWithTag("course-detail").assertDoesNotExist()
 
         onNodeWithTag("slot-Monday-2").performClick()
-        onNode(hasText("情報メディア実験A") and hasAnyAncestor(hasTestTag("course-details"))).performClick()
+        onNode(hasText("情報メディア実験A") and hasAnyAncestor(hasTestTag("course-selection"))).performClick()
         runOnIdle { pending.complete(Unit) }
-        onNodeWithText("編集").assertIsEnabled().performClick()
+        onNodeWithContentDescription("授業の操作").performClick()
+        onNodeWithText("編集する").assertIsEnabled().performClick()
         onNodeWithText("Cancel").assertIsEnabled().performClick()
+        onNodeWithContentDescription("Back").performClick()
         onNodeWithTag("screen-Timetable").assertIsDisplayed()
     }
 
@@ -96,7 +100,8 @@ class TimetableInteractionUiTest {
         onNodeWithContentDescription("メニュー").performClick()
         onNodeWithTag("destination-Timetable").performClick()
         onNodeWithTag("slot-Monday-2").performClick()
-        onNodeWithText("編集").performClick()
+        onNodeWithContentDescription("授業の操作").performClick()
+        onNodeWithText("編集する").performClick()
         onNodeWithText("Name", substring = false).assertTextContains("情報メディア実験A")
         onNodeWithText("Cancel").performClick()
     }

@@ -65,11 +65,14 @@ class TimetableHomeUiTest {
         setContent { TwinteTheme { TestAuthenticatedApp(withCourse = true) } }
         onNodeWithTag("slot-Monday-2").performClick()
         onNodeWithText("授業が重複しています").assertIsDisplayed()
-        onNode(hasText("情報メディア実験A") and hasAnyAncestor(hasTestTag("course-details"))).performClick()
+        onNode(hasText("情報メディア実験A") and hasAnyAncestor(hasTestTag("course-selection"))).performClick()
         onNodeWithText("1.5 単位").assertIsDisplayed()
-        onNodeWithText("編集").performClick()
+        onNodeWithContentDescription("授業の操作").performClick()
+        onNodeWithText("編集する").performClick()
         onNodeWithText("Name", substring = false).assertTextContains("情報メディア実験A")
         onNodeWithText("Cancel").performClick()
+        onNodeWithTag("course-detail").assertIsDisplayed()
+        onNodeWithContentDescription("Back").performClick()
         onNodeWithTag("screen-Timetable").assertIsDisplayed()
     }
 

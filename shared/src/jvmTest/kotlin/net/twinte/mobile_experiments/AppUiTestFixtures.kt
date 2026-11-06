@@ -20,6 +20,7 @@ import net.twinte.mobile_experiments.core.timetable.DailyTimetable
 import net.twinte.mobile_experiments.core.timetable.DailyTimetableSnapshot
 import net.twinte.mobile_experiments.core.timetable.DailyTimetableService
 import net.twinte.mobile_experiments.core.timetable.TimetableSnapshot
+import net.twinte.mobile_experiments.core.timetable.TimetableService
 import kotlin.time.Instant
 
 internal fun testSignedIn(id: String = "user", offline: Boolean = false) = AuthUiState(
@@ -33,7 +34,7 @@ internal fun testSignedIn(id: String = "user", offline: Boolean = false) = AuthU
 internal fun TestAuthenticatedApp(
     auth: AuthUiState = testSignedIn(),
     withCourse: Boolean = false,
-    service: FakeTimetableService? = null,
+    service: TimetableService? = null,
     dailyService: DailyTimetableService? = null,
     date: LocalDate = LocalDate(2026, 11, 6),
 ) {
