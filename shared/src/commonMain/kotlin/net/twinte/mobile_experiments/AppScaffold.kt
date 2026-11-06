@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,9 +17,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -138,6 +143,8 @@ internal fun AppScaffold(
     ) {
         Scaffold(
             containerColor = Color.Transparent,
+            // Screens inset their content at the bottom, not their background.
+            contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal),
             topBar = {
                 Column(Modifier.statusBarsPadding()) {
                     Row(
@@ -199,16 +206,23 @@ internal fun AppScaffold(
             NavDisplay(
                 entries = navigator.entries(entryProvider {
                     entry<AppRoute.Timetable> { content(it) }
-                    entry<AppRoute.Today> { content(it) }
-                    entry<AppRoute.Courses> { content(it) }
-                    entry<AppRoute.Account> { content(it) }
-                    entry<AppRoute.Tags> { content(it) }
+                    entry<AppRoute.Today> { BottomInsetScreen { content(it) } }
+                    entry<AppRoute.Courses> { BottomInsetScreen { content(it) } }
+                    entry<AppRoute.Account> { BottomInsetScreen { content(it) } }
+                    entry<AppRoute.Tags> { BottomInsetScreen { content(it) } }
                 }),
                 onBack = navigator::goBack,
                 modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()
                     .testTag("screen-${navigator.currentRoute}"),
             )
         }
+    }
+}
+
+@Composable
+private fun BottomInsetScreen(content: @Composable () -> Unit) {
+    Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))) {
+        content()
     }
 }
 

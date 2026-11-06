@@ -47,11 +47,10 @@ import net.twinte.mobile_experiments.ui.theme.TwinteTheme
 @Composable
 internal fun Modifier.twinteBaseSurface(shape: Shape): Modifier {
     val colors = TwinteTheme.colors
-    // Web's $shadow-base has a narrow highlight, unlike the raised button shadow.
+    // Keep the page's bottom edge open, without a highlight above the system gesture area.
     return dropShadow(shape, Shadow(2.dp, colors.shadowLight, offset = DpOffset((-1).dp, (-1).dp)))
         .dropShadow(shape, Shadow(10.dp, colors.shadowDark, offset = DpOffset(2.dp, 4.dp)))
         .background(colors.surface, shape)
-        .innerShadow(shape, Shadow(12.dp, colors.insetLight, offset = DpOffset((-6).dp, (-8).dp)))
         .innerShadow(shape, Shadow(4.dp, colors.insetDark, offset = DpOffset(2.dp, 3.dp)))
 }
 
