@@ -14,6 +14,7 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Month
 import net.twinte.mobile_experiments.core.api.TwinteApiException
 import net.twinte.mobile_experiments.core.domain.Course
+import net.twinte.mobile_experiments.core.domain.CreateRegisteredCourseInput
 import net.twinte.mobile_experiments.core.domain.Day
 import net.twinte.mobile_experiments.core.domain.Module
 import net.twinte.mobile_experiments.core.domain.RegisteredCourse
@@ -47,6 +48,7 @@ internal data class CourseOperationsUiState(
     val searchResults: List<Course> = emptyList(),
     val message: String? = null,
     val isLoading: Boolean = false,
+    val operationFailed: Boolean = false,
 )
 
 internal data class TimetableSlot(
@@ -213,10 +215,22 @@ internal class TimetableStateHolder(
         }
     }
 
-    fun updateCourse(input: UpdateRegisteredCourseInput) {
+    fun createCourseManually(input: CreateRegisteredCourseInput, onSuccess: () -> Unit = {}) {
+        val accountId = accountId ?: return
+        launchCourseOperation("Creating course...") {
+            val course = timetableService.createCourseManually(accountId, input)
+            currentCoroutineContext().ensureActive()
+            onSuccess()
+            completeCourseMutation(accountId, "Created ${course.name}")
+        }
+    }
+
+    fun updateCourse(input: UpdateRegisteredCourseInput, onSuccess: () -> Unit = {}) {
         val accountId = accountId ?: return
         launchCourseOperation("Updating course...") {
             val course = timetableService.updateCourse(accountId, input)
+            currentCoroutineContext().ensureActive()
+            onSuccess()
             completeCourseMutation(accountId, "Updated ${course.name}")
         }
     }
@@ -411,7 +425,9 @@ internal class TimetableStateHolder(
         operation: suspend () -> Unit,
     ) {
         if (courseSearch?.isActive == true || courseOperation?.isActive == true) return
-        _courseOperationsUiState.update { it.copy(message = loadingMessage, isLoading = true) }
+        _courseOperationsUiState.update {
+            it.copy(message = loadingMessage, isLoading = true, operationFailed = false)
+        }
         courseOperation = scope.launch {
             try {
                 operation()
@@ -420,7 +436,7 @@ internal class TimetableStateHolder(
             } catch (error: Throwable) {
                 onFailure(error)
                 _courseOperationsUiState.update {
-                    it.copy(message = "Operation failed", isLoading = false)
+                    it.copy(message = "Operation failed", isLoading = false, operationFailed = true)
                 }
             }
         }

@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import net.twinte.mobile_experiments.core.auth.AuthState
 import net.twinte.mobile_experiments.core.domain.AuthProvider
 import net.twinte.mobile_experiments.core.domain.Course
+import net.twinte.mobile_experiments.core.domain.CreateRegisteredCourseInput
 import net.twinte.mobile_experiments.core.domain.Day
 import net.twinte.mobile_experiments.core.domain.Module
 import net.twinte.mobile_experiments.core.domain.RegisteredCourse
@@ -60,7 +61,8 @@ internal fun AuthScreen(
     courseOperationsUiState: CourseOperationsUiState,
     onSearchCourses: (String) -> Unit,
     onRegisterCourse: (Course) -> Unit,
-    onUpdateCourse: (UpdateRegisteredCourseInput) -> Unit,
+    onCreateCourse: (CreateRegisteredCourseInput, () -> Unit) -> Unit,
+    onUpdateCourse: (UpdateRegisteredCourseInput, () -> Unit) -> Unit,
     onDeleteCourse: (RegisteredCourse) -> Unit,
     onCreateTag: (String) -> Unit,
     onUpdateTag: (Tag, String) -> Unit,
@@ -141,6 +143,7 @@ internal fun AuthScreen(
                 courseOperationsUiState = courseOperationsUiState,
                 onSearchCourses = onSearchCourses,
                 onRegisterCourse = onRegisterCourse,
+                onCreateCourse = onCreateCourse,
                 onUpdateCourse = onUpdateCourse,
                 onDeleteCourse = onDeleteCourse,
                 onCreateTag = onCreateTag,
@@ -204,7 +207,8 @@ private fun TimetableSection(
     courseOperationsUiState: CourseOperationsUiState,
     onSearchCourses: (String) -> Unit,
     onRegisterCourse: (Course) -> Unit,
-    onUpdateCourse: (UpdateRegisteredCourseInput) -> Unit,
+    onCreateCourse: (CreateRegisteredCourseInput, () -> Unit) -> Unit,
+    onUpdateCourse: (UpdateRegisteredCourseInput, () -> Unit) -> Unit,
     onDeleteCourse: (RegisteredCourse) -> Unit,
     onCreateTag: (String) -> Unit,
     onUpdateTag: (Tag, String) -> Unit,
@@ -241,6 +245,7 @@ private fun TimetableSection(
         uiState = courseOperationsUiState,
         onSearch = onSearchCourses,
         onRegister = onRegisterCourse,
+        onCreateCourse = onCreateCourse,
         onUpdate = onUpdateCourse,
         onDelete = onDeleteCourse,
         onCreateTag = onCreateTag,

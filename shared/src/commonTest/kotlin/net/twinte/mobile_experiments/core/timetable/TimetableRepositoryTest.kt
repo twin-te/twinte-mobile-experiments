@@ -156,6 +156,33 @@ class TimetableRepositoryTest {
     }
 
     @Test
+    fun manualCreationAddsCourseToCachedTimetable() = runTest {
+        val createdCourse = course("manual-course")
+        val localDataSource = FakeTimetableLocalDataSource()
+        val repository = repository(
+            timetableApi = FakeTimetableApi(
+                createRegisteredCourseManuallyResult = Result.success(createdCourse),
+            ),
+            localDataSource = localDataSource,
+        )
+
+        val created = repository.createCourseManually(
+            "user-id",
+            CreateRegisteredCourseInput(
+                year = 2026,
+                name = createdCourse.name,
+                instructors = createdCourse.instructors,
+                credit = createdCourse.credit,
+                methods = createdCourse.methods,
+                schedules = createdCourse.schedules,
+            ),
+        )
+
+        assertEquals(createdCourse, created)
+        assertEquals(listOf(createdCourse), repository.observeTimetable("user-id").first().courses)
+    }
+
+    @Test
     fun failedMutationDoesNotChangeCache() = runTest {
         val cached = TimetableSnapshot(courses = listOf(course("course-id")))
         val localDataSource = FakeTimetableLocalDataSource(cached)
