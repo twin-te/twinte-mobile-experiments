@@ -20,11 +20,24 @@ internal class ConnectJsonTransport(
     private val apiBaseUrl: Url,
     private val httpClient: HttpClient,
 ) {
-    suspend fun post(
+    suspend fun postPublic(
+        service: String,
+        method: String,
+        requestBody: String,
+    ): String = post(service, method, requestBody, session = null)
+
+    suspend fun postAuthenticated(
         service: String,
         method: String,
         session: TwinteSession,
         requestBody: String,
+    ): String = post(service, method, requestBody, session)
+
+    private suspend fun post(
+        service: String,
+        method: String,
+        requestBody: String,
+        session: TwinteSession?,
     ): String = mapKtorNetworkErrors {
         val response = httpClient.post(
             URLBuilder(apiBaseUrl).apply {
@@ -34,7 +47,9 @@ internal class ConnectJsonTransport(
             accept(ContentType.Application.Json)
             contentType(ContentType.Application.Json)
             header(ConnectProtocolVersionHeader, "1")
-            header(HttpHeaders.Cookie, "${session.cookieName}=${session.sessionId}")
+            session?.let {
+                header(HttpHeaders.Cookie, "${it.cookieName}=${it.sessionId}")
+            }
             setBody(requestBody)
         }
         val body = response.body<String>()

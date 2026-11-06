@@ -51,6 +51,33 @@ data class CourseSchedule(
     val locations: String,
 )
 
+data class Course(
+    val id: String,
+    val year: Int,
+    val code: String,
+    val name: String,
+    val instructors: String,
+    val credit: String,
+    val overview: String,
+    val remarks: String,
+    val recommendedGrades: List<Int>,
+    val methods: List<CourseMethod>,
+    val schedules: List<CourseSchedule>,
+    val hasParseError: Boolean,
+    val isAnnual: Boolean,
+)
+
+data class SearchCoursesInput(
+    val year: Int,
+    val keywords: List<String> = emptyList(),
+    val codePrefixesIncluded: List<String> = emptyList(),
+    val codePrefixesExcluded: List<String> = emptyList(),
+    val schedulesFullyIncluded: List<CourseSchedule> = emptyList(),
+    val schedulesPartiallyOverlapped: List<CourseSchedule> = emptyList(),
+    val limit: Int = 20,
+    val offset: Int = 0,
+)
+
 data class RegisteredCourse(
     val id: String,
     val year: Int,
@@ -65,6 +92,29 @@ data class RegisteredCourse(
     val late: Int = 0,
     val tagIds: List<String> = emptyList(),
     val code: String? = null,
+)
+
+data class CreateRegisteredCourseInput(
+    val year: Int,
+    val name: String,
+    val instructors: String,
+    val credit: String,
+    val methods: List<CourseMethod>,
+    val schedules: List<CourseSchedule>,
+)
+
+data class UpdateRegisteredCourseInput(
+    val id: String,
+    val name: String? = null,
+    val instructors: String? = null,
+    val credit: String? = null,
+    val methods: List<CourseMethod>? = null,
+    val schedules: List<CourseSchedule>? = null,
+    val memo: String? = null,
+    val attendance: Int? = null,
+    val absence: Int? = null,
+    val late: Int? = null,
+    val tagIds: List<String>? = null,
 )
 
 data class DailyCourse(

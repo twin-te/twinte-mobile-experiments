@@ -47,35 +47,66 @@ class RoomTimetableLocalDataSource(
             accountId = accountId,
             year = year,
             courses = courses.map { it.toEntity(accountId) },
-            methods = courses.flatMap { course ->
-                course.methods.mapIndexed { index, method ->
-                    CourseMethodEntity(
-                        accountId = accountId,
-                        courseId = course.id,
-                        position = index,
-                        method = method.name,
-                    )
-                }
-            },
-            schedules = courses.flatMap { course ->
-                course.schedules.mapIndexed { index, schedule ->
-                    schedule.toEntity(accountId, course.id, index)
-                }
-            },
+            methods = courses.toMethodEntities(accountId),
+            schedules = courses.toScheduleEntities(accountId),
             tags = tags.map { it.toEntity(accountId) },
-            courseTags = courses.flatMap { course ->
-                course.tagIds.map { tagId ->
-                    RegisteredCourseTagEntity(
-                        accountId = accountId,
-                        courseId = course.id,
-                        tagId = tagId,
-                    )
-                }
-            },
+            courseTags = courses.toCourseTagEntities(accountId),
             syncedAtMillis = syncedAt.toEpochMilliseconds(),
         )
     }
+
+    override suspend fun upsertCourses(accountId: String, courses: List<RegisteredCourse>) {
+        timetableDao.upsertCourses(
+            accountId = accountId,
+            courses = courses.map { it.toEntity(accountId) },
+            methods = courses.toMethodEntities(accountId),
+            schedules = courses.toScheduleEntities(accountId),
+            courseTags = courses.toCourseTagEntities(accountId),
+        )
+    }
+
+    override suspend fun deleteCourse(accountId: String, id: String) {
+        timetableDao.deleteCourse(accountId, id)
+    }
+
+    override suspend fun upsertTags(accountId: String, tags: List<Tag>) {
+        timetableDao.upsertTags(tags.map { it.toEntity(accountId) })
+    }
+
+    override suspend fun deleteTag(accountId: String, id: String) {
+        timetableDao.deleteTag(accountId, id)
+    }
 }
+
+private fun List<RegisteredCourse>.toMethodEntities(accountId: String): List<CourseMethodEntity> =
+    flatMap { course ->
+        course.methods.mapIndexed { index, method ->
+            CourseMethodEntity(
+                accountId = accountId,
+                courseId = course.id,
+                position = index,
+                method = method.name,
+            )
+        }
+    }
+
+private fun List<RegisteredCourse>.toScheduleEntities(accountId: String): List<CourseScheduleEntity> =
+    flatMap { course ->
+        course.schedules.mapIndexed { index, schedule ->
+            schedule.toEntity(accountId, course.id, index)
+        }
+    }
+
+private fun List<RegisteredCourse>.toCourseTagEntities(accountId: String): List<RegisteredCourseTagEntity> =
+    flatMap { course ->
+        course.tagIds.map { tagId ->
+            RegisteredCourseTagEntity(
+                accountId = accountId,
+                courseId = course.id,
+                tagId = tagId,
+            )
+        }
+    }
 
 private data class CourseDetails(
     val courses: List<RegisteredCourseEntity>,

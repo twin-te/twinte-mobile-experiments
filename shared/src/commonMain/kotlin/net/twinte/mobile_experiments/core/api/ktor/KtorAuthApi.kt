@@ -88,7 +88,7 @@ class KtorAuthApi(
         session: TwinteSession,
         method: String,
         requestBody: String,
-    ): String = connectTransport.post(
+    ): String = connectTransport.postAuthenticated(
         service = "auth.v1.AuthService",
         method = method,
         session = session,
