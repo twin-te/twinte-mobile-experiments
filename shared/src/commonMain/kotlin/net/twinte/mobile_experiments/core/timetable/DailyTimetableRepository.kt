@@ -2,6 +2,8 @@ package net.twinte.mobile_experiments.core.timetable
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.LocalDate
 import net.twinte.mobile_experiments.core.api.DailyTimetableApi
 import net.twinte.mobile_experiments.core.auth.AuthenticatedSessionProvider
@@ -14,6 +16,8 @@ class DailyTimetableRepository(
     private val builder: DailyTimetableBuilder = DailyTimetableBuilder(),
     private val now: () -> kotlin.time.Instant = Clock.System::now,
 ) : DailyTimetableService {
+    private val refreshMutex = Mutex()
+
     override fun observe(accountId: String, date: LocalDate): Flow<DailyTimetableSnapshot?> =
         localDataSource.observe(accountId, date).map { cached ->
             cached?.let {
@@ -32,12 +36,14 @@ class DailyTimetableRepository(
         }
 
     override suspend fun refresh(accountId: String, date: LocalDate) {
-        authenticatedSessionProvider.withActiveSession(accountId) { session ->
-            localDataSource.replace(
-                accountId = accountId,
-                snapshot = api.getByDate(session, date),
-                syncedAt = now(),
-            )
+        refreshMutex.withLock {
+            authenticatedSessionProvider.withActiveSession(accountId) { session ->
+                localDataSource.replace(
+                    accountId = accountId,
+                    snapshot = api.getByDate(session, date),
+                    syncedAt = now(),
+                )
+            }
         }
     }
 }

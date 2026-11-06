@@ -1,8 +1,12 @@
 package net.twinte.mobile_experiments.core.timetable
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import net.twinte.mobile_experiments.core.api.TimetableApi
 import net.twinte.mobile_experiments.core.api.TwinteApiException
@@ -20,9 +24,11 @@ import net.twinte.mobile_experiments.core.domain.UpdateRegisteredCourseInput
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.time.Instant
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class TimetableRepositoryTest {
     @Test
     fun refreshStoresOneCompleteSnapshot() = runTest {
@@ -167,6 +173,37 @@ class TimetableRepositoryTest {
         assertEquals(emptyList(), repository.observeTimetable("user-id").first().courses)
     }
 
+    @Test
+    fun fullRefreshCannotOverwriteConcurrentCourseUpdate() = runTest {
+        val pendingRefresh = CompletableDeferred<Unit>()
+        val original = course("course-id")
+        val updated = original.copy(name = "Updated")
+        var updateStarted = false
+        val localDataSource = FakeTimetableLocalDataSource(TimetableSnapshot(courses = listOf(original)))
+        val repository = repository(
+            timetableApi = FakeTimetableApi(
+                listRegisteredCoursesResult = Result.success(listOf(original)),
+                updateRegisteredCourseResult = Result.success(updated),
+                listCoursesOperation = { pendingRefresh.await() },
+                updateCourseOperation = { updateStarted = true },
+            ),
+            localDataSource = localDataSource,
+        )
+        val refresh = launch { repository.refresh("user-id") }
+        runCurrent()
+        val update = launch {
+            repository.updateCourse("user-id", UpdateRegisteredCourseInput(original.id, name = updated.name))
+        }
+        runCurrent()
+
+        assertFalse(updateStarted)
+        pendingRefresh.complete(Unit)
+        refresh.join()
+        update.join()
+
+        assertEquals(listOf(updated), repository.observeTimetable("user-id").first().courses)
+    }
+
     private fun repository(
         timetableApi: TimetableApi,
         localDataSource: TimetableLocalDataSource,
@@ -193,12 +230,16 @@ class TimetableRepositoryTest {
         private val updateTagResult: Result<Tag> = unusedResult(),
         private val deleteTagResult: Result<Unit> = unusedResult(),
         private val rearrangeTagsResult: Result<List<Tag>> = unusedResult(),
+        private val listCoursesOperation: suspend () -> Unit = {},
+        private val updateCourseOperation: suspend () -> Unit = {},
     ) : TimetableApi {
         override suspend fun searchCourses(input: SearchCoursesInput): List<Course> =
             searchCoursesResult.getOrThrow()
 
-        override suspend fun listRegisteredCourses(session: TwinteSession, year: Int?): List<RegisteredCourse> =
-            listRegisteredCoursesResult.getOrThrow()
+        override suspend fun listRegisteredCourses(session: TwinteSession, year: Int?): List<RegisteredCourse> {
+            listCoursesOperation()
+            return listRegisteredCoursesResult.getOrThrow()
+        }
 
         override suspend fun listTags(session: TwinteSession): List<Tag> =
             listTagsResult.getOrThrow()
@@ -217,7 +258,10 @@ class TimetableRepositoryTest {
         override suspend fun updateRegisteredCourse(
             session: TwinteSession,
             input: UpdateRegisteredCourseInput,
-        ): RegisteredCourse = updateRegisteredCourseResult.getOrThrow()
+        ): RegisteredCourse {
+            updateCourseOperation()
+            return updateRegisteredCourseResult.getOrThrow()
+        }
 
         override suspend fun deleteRegisteredCourse(session: TwinteSession, id: String) {
             deleteRegisteredCourseResult.getOrThrow()

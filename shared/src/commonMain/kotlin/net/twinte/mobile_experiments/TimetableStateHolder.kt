@@ -87,6 +87,7 @@ internal class TimetableStateHolder(
     private var dailyObservation: Job? = null
     private var timetableRefresh: Job? = null
     private var dailyRefresh: Job? = null
+    private var courseSearch: Job? = null
     private var courseOperation: Job? = null
     private var timetableSnapshot = TimetableSnapshot()
 
@@ -99,6 +100,7 @@ internal class TimetableStateHolder(
         if (accountChanged) {
             timetableObservation?.cancel()
             timetableRefresh?.cancel()
+            courseSearch?.cancel()
             courseOperation?.cancel()
             timetableSnapshot = TimetableSnapshot()
             _timetableUiState.value = TimetableUiState(
@@ -135,7 +137,7 @@ internal class TimetableStateHolder(
     }
 
     fun refreshTimetable() {
-        if (_timetableUiState.value.isLoading) return
+        if (timetableRefresh?.isActive == true) return
         val accountId = accountId ?: return
         _timetableUiState.update { it.copy(isLoading = true, message = "Refreshing timetable...") }
         timetableRefresh = scope.launch {
@@ -154,21 +156,29 @@ internal class TimetableStateHolder(
     }
 
     fun searchCourses(query: String) {
+        if (courseSearch?.isActive == true || courseOperation?.isActive == true) return
         val year = _timetableUiState.value.selectedYear
-        launchCourseOperation("Searching courses...") {
-            val keywords = query.trim()
-                .split(Regex("\\s+"))
-                .filter(String::isNotBlank)
-            val results = timetableService.searchCourses(
-                SearchCoursesInput(
-                    year = year,
-                    keywords = keywords,
-                ),
-            )
-            _courseOperationsUiState.value = CourseOperationsUiState(
-                searchResults = results,
-                message = if (results.isEmpty()) "No courses found" else "${results.size} courses found",
-            )
+        _courseOperationsUiState.update { it.copy(message = "Searching courses...", isLoading = true) }
+        courseSearch = scope.launch {
+            try {
+                val keywords = query.trim()
+                    .split(Regex("\\s+"))
+                    .filter(String::isNotBlank)
+                val results = timetableService.searchCourses(
+                    SearchCoursesInput(year = year, keywords = keywords),
+                )
+                _courseOperationsUiState.value = CourseOperationsUiState(
+                    searchResults = results,
+                    message = if (results.isEmpty()) "No courses found" else "${results.size} courses found",
+                )
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                onFailure(error)
+                _courseOperationsUiState.update {
+                    it.copy(message = "Search failed", isLoading = false)
+                }
+            }
         }
     }
 
@@ -244,7 +254,7 @@ internal class TimetableStateHolder(
     }
 
     fun refreshDailyTimetable() {
-        if (_dailyTimetableUiState.value.isLoading) return
+        if (dailyRefresh?.isActive == true) return
         val accountId = accountId ?: return
         val date = date
         _dailyTimetableUiState.update {
@@ -273,6 +283,7 @@ internal class TimetableStateHolder(
                 _timetableUiState.value = snapshot.toUiState(
                     selectedYear = current.selectedYear,
                     selectedModule = current.selectedModule,
+                    isLoading = current.isLoading,
                 )
             }
         }
@@ -280,7 +291,8 @@ internal class TimetableStateHolder(
     private fun observeDailyTimetable(accountId: String, date: LocalDate): Job =
         scope.launch {
             dailyTimetableService.observe(accountId, date).collect { snapshot ->
-                _dailyTimetableUiState.value = if (snapshot == null) {
+                val current = _dailyTimetableUiState.value
+                val updated = if (snapshot == null) {
                     DailyTimetableUiState(date = date)
                 } else {
                     val timetable = snapshot.timetable
@@ -297,6 +309,7 @@ internal class TimetableStateHolder(
                         lastSuccessfulSyncAt = snapshot.lastSuccessfulSyncAt,
                     )
                 }
+                _dailyTimetableUiState.value = updated.copy(isLoading = current.isLoading)
             }
         }
 
@@ -316,6 +329,7 @@ internal class TimetableStateHolder(
         }
 
     private suspend fun completeCourseMutation(accountId: String, successMessage: String) {
+        val date = date
         val dailyRefreshSucceeded = try {
             dailyTimetableService.refresh(accountId, date)
             true
@@ -325,8 +339,10 @@ internal class TimetableStateHolder(
             if (error is TwinteApiException && error.isUnauthorized) {
                 onFailure(error)
             }
-            _dailyTimetableUiState.update {
-                it.copy(message = "Refresh failed; showing saved daily schedule", isLoading = false)
+            if (this.date == date) {
+                _dailyTimetableUiState.update {
+                    it.copy(message = "Refresh failed; showing saved daily schedule")
+                }
             }
             false
         }
@@ -346,7 +362,7 @@ internal class TimetableStateHolder(
         loadingMessage: String,
         operation: suspend () -> Unit,
     ) {
-        if (_courseOperationsUiState.value.isLoading) return
+        if (courseSearch?.isActive == true || courseOperation?.isActive == true) return
         _courseOperationsUiState.update { it.copy(message = loadingMessage, isLoading = true) }
         courseOperation = scope.launch {
             try {
@@ -364,7 +380,14 @@ internal class TimetableStateHolder(
 
     private fun selectYear(year: Int) {
         val current = _timetableUiState.value
-        _courseOperationsUiState.value = CourseOperationsUiState()
+        courseSearch?.cancel()
+        _courseOperationsUiState.update {
+            if (courseOperation?.isActive == true) {
+                it.copy(searchResults = emptyList())
+            } else {
+                CourseOperationsUiState()
+            }
+        }
         _timetableUiState.value = timetableSnapshot.toUiState(
             selectedYear = year,
             selectedModule = current.selectedModule,

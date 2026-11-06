@@ -1,8 +1,12 @@
 package net.twinte.mobile_experiments.core.timetable
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
 import net.twinte.mobile_experiments.core.api.DailyApiSnapshot
@@ -22,6 +26,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.time.Instant
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class DailyTimetableRepositoryTest {
     private val date = LocalDate(2026, 5, 1)
 
@@ -90,6 +95,36 @@ class DailyTimetableRepositoryTest {
         )
 
         assertNull(repository.observe("user-id", date).first())
+    }
+
+    @Test
+    fun refreshAfterMutationWaitsForOlderRefreshBeforeUpdatingCache() = runTest {
+        val pendingRefresh = CompletableDeferred<Unit>()
+        var requestCount = 0
+        val api = object : DailyTimetableApi {
+            override suspend fun getByDate(session: TwinteSession, date: LocalDate): DailyApiSnapshot {
+                requestCount += 1
+                val module = if (requestCount == 1) {
+                    pendingRefresh.await()
+                    Module.SpringA
+                } else {
+                    Module.FallA
+                }
+                return DailyApiSnapshot(date, module, emptyList(), emptyList())
+            }
+        }
+        val repository = repository(api, FakeDailyTimetableLocalDataSource())
+        val firstRefresh = launch { repository.refresh("user-id", date) }
+        runCurrent()
+        val secondRefresh = launch { repository.refresh("user-id", date) }
+        runCurrent()
+
+        assertEquals(1, requestCount)
+        pendingRefresh.complete(Unit)
+        firstRefresh.join()
+        secondRefresh.join()
+
+        assertEquals(Module.FallA, repository.observe("user-id", date).first()?.timetable?.module)
     }
 
     private fun repository(
