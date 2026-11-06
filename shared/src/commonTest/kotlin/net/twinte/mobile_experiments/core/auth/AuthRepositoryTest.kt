@@ -1,6 +1,12 @@
 package net.twinte.mobile_experiments.core.auth
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import net.twinte.mobile_experiments.core.api.AuthApi
 import net.twinte.mobile_experiments.core.api.TwinteApiException
 import net.twinte.mobile_experiments.core.api.TwinteNetworkException
@@ -13,7 +19,24 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class AuthRepositoryTest {
+    @Test
+    fun restoreCachedSessionDoesNotWaitForNetwork() = runTest {
+        val cachedUser = User("cached-user-id", emptyList())
+        val authApi = FakeAuthApi(getMeResult = Result.failure(IllegalStateException("network called")))
+        val repository = AuthRepository(
+            sessionStore = MemorySessionStore("session-id"),
+            authApi = authApi,
+            googleSessionApi = FakeGoogleSessionApi(TwinteSession("unused")),
+            appleSessionApi = FakeAppleSessionApi(TwinteSession("unused")),
+            accountLocalDataSource = MemoryAccountLocalDataSource(cachedUser),
+        )
+
+        assertEquals(AuthSession("session-id", cachedUser), repository.restoreCachedSession())
+        assertNull(authApi.lastSession)
+    }
+
     @Test
     fun restoreSessionClearsCachedAccountWhenSessionIsMissing() = runTest {
         val accountStore = MemoryAccountLocalDataSource(User("cached-user-id", emptyList()))
@@ -148,6 +171,59 @@ class AuthRepositoryTest {
         assertEquals("session-id", restored?.sessionId)
         assertEquals(cachedUser, restored?.user)
         assertEquals(true, restored?.isOffline)
+    }
+
+    @Test
+    fun cancelledValidationCannotRewriteCachedAccount() = runTest {
+        val pendingResponse = CompletableDeferred<Unit>()
+        val cachedUser = User("cached-user-id", emptyList())
+        val sessionStore = MemorySessionStore("session-id")
+        val accountStore = MemoryAccountLocalDataSource(cachedUser)
+        val repository = AuthRepository(
+            sessionStore = sessionStore,
+            authApi = FakeAuthApi(getMeOperation = {
+                withContext(NonCancellable) { pendingResponse.await() }
+            }),
+            googleSessionApi = FakeGoogleSessionApi(TwinteSession("unused")),
+            appleSessionApi = FakeAppleSessionApi(TwinteSession("unused")),
+            accountLocalDataSource = accountStore,
+        )
+        val validation = launch { repository.restoreSession() }
+        runCurrent()
+
+        validation.cancel()
+        pendingResponse.complete(Unit)
+        validation.join()
+
+        assertEquals(cachedUser, accountStore.getActiveUser())
+        assertEquals("session-id", sessionStore.getSessionId())
+    }
+
+    @Test
+    fun cancelledUnauthorizedValidationCannotClearCachedAccount() = runTest {
+        val pendingResponse = CompletableDeferred<Unit>()
+        val cachedUser = User("cached-user-id", emptyList())
+        val sessionStore = MemorySessionStore("session-id")
+        val accountStore = MemoryAccountLocalDataSource(cachedUser)
+        val repository = AuthRepository(
+            sessionStore = sessionStore,
+            authApi = FakeAuthApi(
+                getMeResult = Result.failure(TwinteApiException(401, "unauthorized")),
+                getMeOperation = { withContext(NonCancellable) { pendingResponse.await() } },
+            ),
+            googleSessionApi = FakeGoogleSessionApi(TwinteSession("unused")),
+            appleSessionApi = FakeAppleSessionApi(TwinteSession("unused")),
+            accountLocalDataSource = accountStore,
+        )
+        val validation = launch { repository.restoreSession() }
+        runCurrent()
+
+        validation.cancel()
+        pendingResponse.complete(Unit)
+        validation.join()
+
+        assertEquals(cachedUser, accountStore.getActiveUser())
+        assertEquals("session-id", sessionStore.getSessionId())
     }
 
     @Test
@@ -304,6 +380,7 @@ class AuthRepositoryTest {
         private val logoutResult: Result<Unit> = Result.success(Unit),
         private val deleteUserAuthenticationResult: Result<Unit> = Result.success(Unit),
         private val deleteAccountResult: Result<Unit> = Result.success(Unit),
+        private val getMeOperation: suspend () -> Unit = {},
     ) : AuthApi {
         var lastSession: TwinteSession? = null
             private set
@@ -316,6 +393,7 @@ class AuthRepositoryTest {
 
         override suspend fun getMe(session: TwinteSession): User {
             lastSession = session
+            getMeOperation()
             return getMeResult.getOrThrow()
         }
 

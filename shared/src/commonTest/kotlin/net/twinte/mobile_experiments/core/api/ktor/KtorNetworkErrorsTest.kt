@@ -1,5 +1,6 @@
 package net.twinte.mobile_experiments.core.api.ktor
 
+import io.ktor.client.plugins.HttpRequestTimeoutException
 import io.ktor.util.network.UnresolvedAddressException
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.IOException
@@ -29,5 +30,16 @@ class KtorNetworkErrorsTest {
         }
 
         assertIs<UnresolvedAddressException>(error.cause)
+    }
+
+    @Test
+    fun mapsRequestTimeoutToNetworkException() = runTest {
+        val error = assertFailsWith<TwinteNetworkException> {
+            mapKtorNetworkErrors {
+                throw HttpRequestTimeoutException("https://app.twinte.net", 15_000)
+            }
+        }
+
+        assertIs<HttpRequestTimeoutException>(error.cause)
     }
 }

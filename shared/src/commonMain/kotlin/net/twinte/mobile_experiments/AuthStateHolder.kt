@@ -2,6 +2,9 @@ package net.twinte.mobile_experiments
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,16 +39,26 @@ internal class AuthStateHolder(
         ),
     )
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
+    private var restoreJob: Job? = null
 
     suspend fun restoreSession() {
+        restoreJob = currentCoroutineContext()[Job]
         _uiState.update { it.copy(isLoading = true, message = "Restoring session...") }
         try {
-            authService.restoreSession()?.let(::applySession)
+            authService.restoreCachedSession()?.let { cached ->
+                applySession(cached, "Showing saved data; checking session...")
+            }
+            val restored = authService.restoreSession()
+            currentCoroutineContext().ensureActive()
+            restored?.let(::applySession)
                 ?: _uiState.update { it.signedOut(initialMessage()) }
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
+            currentCoroutineContext().ensureActive()
             applyFailure(error)
+        } finally {
+            restoreJob = null
         }
     }
 
@@ -101,6 +114,7 @@ internal class AuthStateHolder(
 
     private fun launchOperation(message: String, operation: suspend () -> Unit) {
         if (_uiState.value.isLoading) return
+        restoreJob?.cancel()
         scope.launch {
             _uiState.update { it.copy(isLoading = true, message = message) }
             try {

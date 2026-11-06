@@ -1,6 +1,8 @@
 package net.twinte.mobile_experiments.core.auth
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import net.twinte.mobile_experiments.core.api.AuthApi
 import net.twinte.mobile_experiments.core.api.TwinteApiException
 import net.twinte.mobile_experiments.core.api.TwinteNetworkException
@@ -14,23 +16,33 @@ class AuthRepository(
     private val appleSessionApi: AppleSessionApi,
     private val accountLocalDataSource: AccountLocalDataSource,
 ) : AuthService {
+    override suspend fun restoreCachedSession(): AuthSession? {
+        val session = sessionStore.getSession() ?: run {
+            accountLocalDataSource.clearActiveAccountAndData()
+            return null
+        }
+        val cachedUser = accountLocalDataSource.getActiveUser() ?: return null
+        return AuthSession(session.sessionId, cachedUser)
+    }
+
     override suspend fun restoreSession(): AuthSession? {
         val session = sessionStore.getSession() ?: run {
             accountLocalDataSource.clearActiveAccountAndData()
             return null
         }
         val cachedUser = accountLocalDataSource.getActiveUser()
-        return runCatching {
-            val user = authApi.getMe(session)
-            accountLocalDataSource.saveActiveUser(user)
-            AuthSession(session.sessionId, user)
-        }.onFailure { error ->
+        val user = try {
+            authApi.getMe(session)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: Throwable) {
+            currentCoroutineContext().ensureActive()
+            if (sessionStore.getSessionId() != session.sessionId) return null
             if (error.isUnauthorized()) {
                 sessionStore.clearSessionId()
                 accountLocalDataSource.clearActiveAccountAndData()
+                return null
             }
-        }.getOrElse { error ->
-            if (error.isUnauthorized()) return null
             if (cachedUser != null && error.allowsOfflineSession()) {
                 return AuthSession(
                     sessionId = session.sessionId,
@@ -40,6 +52,10 @@ class AuthRepository(
             }
             throw error
         }
+        currentCoroutineContext().ensureActive()
+        if (sessionStore.getSessionId() != session.sessionId) return null
+        accountLocalDataSource.saveActiveUser(user)
+        return AuthSession(session.sessionId, user)
     }
 
     override suspend fun signInWithGoogleIdToken(idToken: String): AuthSession {
