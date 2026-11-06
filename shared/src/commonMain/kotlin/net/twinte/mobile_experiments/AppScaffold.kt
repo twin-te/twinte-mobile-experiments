@@ -89,6 +89,7 @@ internal fun AppScaffold(
         }
     }
     ModalNavigationDrawer(
+        modifier = Modifier.fillMaxSize().background(colors.surface),
         drawerState = drawer,
         drawerContent = {
             ModalDrawerSheet(
@@ -136,7 +137,7 @@ internal fun AppScaffold(
         },
     ) {
         Scaffold(
-            containerColor = colors.background,
+            containerColor = Color.Transparent,
             topBar = {
                 Column(Modifier.statusBarsPadding()) {
                     Row(
@@ -158,7 +159,7 @@ internal fun AppScaffold(
                                         else Res.drawable.twinte_logo_light,
                                     ),
                                     contentDescription = "Twin:te",
-                                    modifier = Modifier.width(110.dp).height(30.dp),
+                                    modifier = Modifier.width(99.dp).height(27.dp),
                                 )
                             } else {
                                 Text(
