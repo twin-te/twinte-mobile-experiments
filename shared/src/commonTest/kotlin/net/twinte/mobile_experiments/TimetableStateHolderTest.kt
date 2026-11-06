@@ -748,7 +748,7 @@ class TimetableStateHolderTest {
     }
 }
 
-private class FakeTimetableService(
+internal class FakeTimetableService(
     initialSnapshot: TimetableSnapshot = TimetableSnapshot(),
     private val searchResults: List<Course> = emptyList(),
     private val searchResultProvider: (suspend (SearchCoursesInput) -> List<Course>)? = null,
@@ -872,7 +872,7 @@ private fun catalogCourse(code: String, name: String): Course =
         isAnnual = false,
     )
 
-private class FakeDailyTimetableService(
+internal class FakeDailyTimetableService(
     private val refreshError: Throwable? = null,
     private val refreshOperation: suspend (LocalDate) -> Unit = {},
     private val initialSnapshot: DailyTimetableSnapshot? = null,

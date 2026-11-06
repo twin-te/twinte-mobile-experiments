@@ -35,6 +35,28 @@ in your IDE’s toolbar or open the [/iosApp](./iosApp) directory in Xcode and r
 
 Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
 
+## Shared app navigation
+
+認証後の画面は commonMain の Navigation 3 で管理します。
+
+- Timetable: 年度・モジュールの選択、キャッシュ済み時間割の表示と更新
+- Today: 今日の時間割の表示と更新
+- Courses: 授業の検索・登録・作成・編集・削除、出欠操作
+- Account: 認証の確認、provider の追加・解除、ログアウト、アカウント削除
+- Tags: Courses の Manage tags から開くタグ管理
+
+各タブの画面状態は切替時に保持します。戻る操作は、配下の画面からそのタブのルートへ、
+タブのルートからは Timetable へ戻ります。ログアウトやアカウント変更時にはナビゲーションと入力状態を破棄します。
+再生成時には選択年度・モジュール、タブ、検索入力、未保存の授業ドラフトを復元します。
+セッションや授業データの復元は既存の SessionStore・ローカルキャッシュを利用します。
+
+オフラインでの書き込みキューはありません。キャッシュ済みデータは表示できますが、
+作成・編集・出欠変更の保存には通信が必要です。
+
+ナビゲーションの回帰テストは `./gradlew :shared:jvmTest` で実行できます。
+UI テストでは画面配線、状態の保存・復元、アカウント間の分離を確認し、
+画面キャプチャを `shared/build/reports/navigation/` に出力します。
+
 ## Local configuration
 
 このプロジェクトでは、環境ごとの差し替え値をローカル設定ファイルで管理します。

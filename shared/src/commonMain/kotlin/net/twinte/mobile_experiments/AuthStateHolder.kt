@@ -35,7 +35,8 @@ internal class AuthStateHolder(
     private val _uiState = MutableStateFlow(
         AuthUiState(
             authState = AuthState.Unknown,
-            message = initialMessage(),
+            message = "Restoring session...",
+            isLoading = true,
         ),
     )
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()

@@ -9,16 +9,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,140 +43,133 @@ internal fun CourseOperationsSection(
     onUpdate: (UpdateRegisteredCourseInput, () -> Unit) -> Unit,
     onChangeAttendance: (String, AttendanceCounter, Int) -> Unit,
     onDelete: (RegisteredCourse) -> Unit,
-    onCreateTag: (String) -> Unit,
-    onUpdateTag: (Tag, String) -> Unit,
-    onDeleteTag: (Tag) -> Unit,
-    onMoveTag: (Tag, Int) -> Unit,
+    onManageTags: () -> Unit,
 ) {
-    var query by remember(selectedYear) { mutableStateOf("") }
-    var creatingCourse by remember { mutableStateOf(false) }
-    var editingCourse by remember { mutableStateOf<RegisteredCourse?>(null) }
-    var attendanceCourseId by remember { mutableStateOf<String?>(null) }
-    var deletingCourse by remember { mutableStateOf<RegisteredCourse?>(null) }
-    val registeredCodes = registeredCourses.mapNotNullTo(mutableSetOf()) { it.code }
+    key(selectedYear) {
+        var query by rememberSaveable { mutableStateOf("") }
+        var creatingCourse by rememberSaveable { mutableStateOf(false) }
+        var editingCourseId by rememberSaveable { mutableStateOf<String?>(null) }
+        var attendanceCourseId by rememberSaveable { mutableStateOf<String?>(null) }
+        var deletingCourse by remember { mutableStateOf<RegisteredCourse?>(null) }
+        val registeredCodes = registeredCourses.mapNotNullTo(mutableSetOf()) { it.code }
 
-    HorizontalDivider()
-    Text("Course search", style = MaterialTheme.typography.titleMedium)
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            modifier = Modifier.weight(1f),
-            enabled = !uiState.isLoading,
-            label = { Text("Name or keyword") },
-            singleLine = true,
-        )
-        Button(
-            enabled = !uiState.isLoading,
-            onClick = { onSearch(query) },
+        Text("Course search", style = MaterialTheme.typography.titleMedium)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Search")
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier.weight(1f),
+                enabled = !uiState.isLoading,
+                label = { Text("Name or keyword") },
+                singleLine = true,
+            )
+            Button(
+                enabled = !uiState.isLoading,
+                onClick = { onSearch(query) },
+            ) {
+                Text("Search")
+            }
         }
-    }
-    uiState.message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-    if (uiState.isLoading) {
-        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-    }
-    uiState.searchResults.forEach { course ->
-        CourseSearchResultRow(
-            course = course,
-            isRegistered = course.code in registeredCodes,
-            enabled = !uiState.isLoading,
-            onRegister = { onRegister(course) },
-        )
-    }
-
-    Text("Registered courses ($selectedYear)", style = MaterialTheme.typography.titleMedium)
-    OutlinedButton(
-        enabled = !uiState.isLoading,
-        onClick = { creatingCourse = true },
-    ) {
-        Text("Create course")
-    }
-    if (registeredCourses.isEmpty()) {
-        Text("No registered courses", style = MaterialTheme.typography.bodyMedium)
-    }
-    registeredCourses.forEach { course ->
-        RegisteredCourseRow(
-            course = course,
-            tagNames = tags.filter { it.id in course.tagIds }.map(Tag::name),
-            enabled = !uiState.isLoading,
-            onEdit = { editingCourse = course },
-            onAttendance = { attendanceCourseId = course.id },
-            onDelete = { deletingCourse = course },
-        )
-    }
-
-    TagManagementSection(
-        tags = tags,
-        enabled = !uiState.isLoading,
-        onCreate = onCreateTag,
-        onUpdate = onUpdateTag,
-        onDelete = onDeleteTag,
-        onMove = onMoveTag,
-    )
-
-    if (creatingCourse) {
-        CourseEditorDialog(
-            course = null,
-            year = selectedYear,
-            tags = tags,
-            isSaving = uiState.isLoading,
-            saveFailed = uiState.operationFailed,
-            onCreate = onCreateCourse,
-            onUpdate = onUpdate,
-            onDismiss = { creatingCourse = false },
-        )
-    }
-    editingCourse?.let { course ->
-        CourseEditorDialog(
-            course = course,
-            year = selectedYear,
-            tags = tags,
-            isSaving = uiState.isLoading,
-            saveFailed = uiState.operationFailed,
-            onCreate = onCreateCourse,
-            onUpdate = onUpdate,
-            onDismiss = { editingCourse = null },
-        )
-    }
-    attendanceCourseId?.let { id ->
-        registeredCourses.firstOrNull { it.id == id }?.let { course ->
-            CourseAttendanceDialog(
+        uiState.message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+        if (uiState.isLoading) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        }
+        uiState.searchResults.forEach { course ->
+            CourseSearchResultRow(
                 course = course,
-                isSaving = uiState.isLoading,
-                operationMessage = uiState.message,
-                onChange = onChangeAttendance,
-                onDismiss = { attendanceCourseId = null },
+                isRegistered = course.code in registeredCodes,
+                enabled = !uiState.isLoading,
+                onRegister = { onRegister(course) },
             )
         }
-    }
-    deletingCourse?.let { course ->
-        AlertDialog(
-            onDismissRequest = { deletingCourse = null },
-            title = { Text("Delete course?") },
-            text = { Text(course.name) },
-            confirmButton = {
-                Button(
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                    onClick = {
-                        deletingCourse = null
-                        onDelete(course)
-                    },
-                ) {
-                    Text("Delete")
-                }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = { deletingCourse = null }) {
-                    Text("Cancel")
-                }
-            },
-        )
+
+        Text("Registered courses ($selectedYear)", style = MaterialTheme.typography.titleMedium)
+        OutlinedButton(
+            enabled = !uiState.isLoading,
+            onClick = { creatingCourse = true },
+        ) {
+            Text("Create course")
+        }
+        if (registeredCourses.isEmpty()) {
+            Text("No registered courses", style = MaterialTheme.typography.bodyMedium)
+        }
+        registeredCourses.forEach { course ->
+            RegisteredCourseRow(
+                course = course,
+                tagNames = tags.filter { it.id in course.tagIds }.map(Tag::name),
+                enabled = !uiState.isLoading,
+                onEdit = { editingCourseId = course.id },
+                onAttendance = { attendanceCourseId = course.id },
+                onDelete = { deletingCourse = course },
+            )
+        }
+
+        OutlinedButton(enabled = !uiState.isLoading, onClick = onManageTags) {
+            Text("Manage tags")
+        }
+
+        if (creatingCourse) {
+            CourseEditorDialog(
+                course = null,
+                year = selectedYear,
+                tags = tags,
+                isSaving = uiState.isLoading,
+                saveFailed = uiState.operationFailed,
+                onCreate = onCreateCourse,
+                onUpdate = onUpdate,
+                onDismiss = { creatingCourse = false },
+            )
+        }
+        registeredCourses.firstOrNull { it.id == editingCourseId }?.let { course ->
+            CourseEditorDialog(
+                course = course,
+                year = selectedYear,
+                tags = tags,
+                isSaving = uiState.isLoading,
+                saveFailed = uiState.operationFailed,
+                onCreate = onCreateCourse,
+                onUpdate = onUpdate,
+                onDismiss = { editingCourseId = null },
+            )
+        }
+        attendanceCourseId?.let { id ->
+            registeredCourses.firstOrNull { it.id == id }?.let { course ->
+                CourseAttendanceDialog(
+                    course = course,
+                    isSaving = uiState.isLoading,
+                    operationMessage = uiState.message,
+                    onChange = onChangeAttendance,
+                    onDismiss = { attendanceCourseId = null },
+                )
+            }
+        }
+        deletingCourse?.let { course ->
+            AlertDialog(
+                onDismissRequest = { deletingCourse = null },
+                title = { Text("Delete course?") },
+                text = { Text(course.name) },
+                confirmButton = {
+                    Button(
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                        onClick = {
+                            deletingCourse = null
+                            onDelete(course)
+                        },
+                    ) {
+                        Text("Delete")
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(onClick = { deletingCourse = null }) {
+                        Text("Cancel")
+                    }
+                },
+            )
+        }
     }
 }
 

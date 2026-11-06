@@ -1,5 +1,8 @@
 package net.twinte.mobile_experiments
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -79,9 +82,12 @@ internal class TimetableStateHolder(
     private val scope: CoroutineScope,
     private val onFailure: (Throwable) -> Unit,
     private val now: () -> Instant = Clock.System::now,
+    initialYear: Int = initialDate.academicYear,
+    initialModule: Module = Module.SpringA,
 ) {
-    private val initialYear = initialDate.academicYear
-    private val _timetableUiState = MutableStateFlow(TimetableUiState(selectedYear = initialYear))
+    private val _timetableUiState = MutableStateFlow(
+        TimetableUiState(selectedYear = initialYear, selectedModule = initialModule),
+    )
     val timetableUiState: StateFlow<TimetableUiState> = _timetableUiState.asStateFlow()
 
     private val _courseOperationsUiState = MutableStateFlow(CourseOperationsUiState())
@@ -465,6 +471,36 @@ internal class TimetableStateHolder(
             selectedModule = current.selectedModule,
             isLoading = current.isLoading,
         )
+    }
+}
+
+@Composable
+internal fun rememberTimetableStateHolder(
+    timetableService: TimetableService,
+    dailyTimetableService: DailyTimetableService,
+    initialDate: LocalDate,
+    scope: CoroutineScope,
+    onFailure: (Throwable) -> Unit,
+): TimetableStateHolder {
+    fun create(year: Int, module: Module) = TimetableStateHolder(
+        timetableService = timetableService,
+        dailyTimetableService = dailyTimetableService,
+        initialDate = initialDate,
+        scope = scope,
+        onFailure = onFailure,
+        initialYear = year,
+        initialModule = module,
+    )
+
+    val saver = listSaver<TimetableStateHolder, String>(
+        save = {
+            val state = it.timetableUiState.value
+            listOf(state.selectedYear.toString(), state.selectedModule.name)
+        },
+        restore = { create(it[0].toInt(), Module.valueOf(it[1])) },
+    )
+    return rememberSaveable(timetableService, dailyTimetableService, scope, onFailure, saver = saver) {
+        create(initialDate.academicYear, Module.SpringA)
     }
 }
 

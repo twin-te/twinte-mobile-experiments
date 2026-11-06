@@ -1,0 +1,105 @@
+package net.twinte.mobile_experiments
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.navigation3.runtime.NavBackStack
+import androidx.navigation3.runtime.NavEntry
+import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.rememberDecoratedNavEntries
+import androidx.navigation3.runtime.rememberNavBackStack
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import androidx.savedstate.serialization.SavedStateConfiguration
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.polymorphic
+import kotlinx.serialization.modules.subclass
+
+@Serializable
+internal sealed interface AppRoute : NavKey {
+    @Serializable data object Timetable : AppRoute
+    @Serializable data object Today : AppRoute
+    @Serializable data object Courses : AppRoute
+    @Serializable data object Account : AppRoute
+    @Serializable data object Tags : AppRoute
+}
+
+internal enum class AppTab(val root: AppRoute, val title: String) {
+    Timetable(AppRoute.Timetable, "Timetable"),
+    Today(AppRoute.Today, "Today"),
+    Courses(AppRoute.Courses, "Courses"),
+    Account(AppRoute.Account, "Account"),
+}
+
+// Explicit registration avoids reflection-only route restoration on iOS.
+internal val appRoutesConfiguration = SavedStateConfiguration {
+    serializersModule = SerializersModule {
+        polymorphic(NavKey::class) {
+            subclass(AppRoute.Timetable::class, AppRoute.Timetable.serializer())
+            subclass(AppRoute.Today::class, AppRoute.Today.serializer())
+            subclass(AppRoute.Courses::class, AppRoute.Courses.serializer())
+            subclass(AppRoute.Account::class, AppRoute.Account.serializer())
+            subclass(AppRoute.Tags::class, AppRoute.Tags.serializer())
+        }
+    }
+}
+
+@Composable
+internal fun rememberAppNavigator(): AppNavigator {
+    val selectedTab = rememberSaveable { mutableStateOf(AppTab.Timetable.name) }
+    val stacks = AppTab.entries.associateWith { tab ->
+        rememberNavBackStack(appRoutesConfiguration, tab.root)
+    }
+    return remember(selectedTab, stacks) { AppNavigator(selectedTab, stacks) }
+}
+
+internal class AppNavigator(
+    private val selection: MutableState<String>,
+    internal val stacks: Map<AppTab, NavBackStack<NavKey>>,
+) {
+    val selectedTab: AppTab get() = AppTab.valueOf(selection.value)
+    val currentRoute: AppRoute get() = stacks.getValue(selectedTab).last() as AppRoute
+    val isNested: Boolean get() = stacks.getValue(selectedTab).size > 1
+
+    fun selectTab(tab: AppTab) {
+        selection.value = tab.name
+    }
+
+    fun openTags() {
+        selectTab(AppTab.Courses)
+        val stack = stacks.getValue(AppTab.Courses)
+        if (stack.last() != AppRoute.Tags) stack.add(AppRoute.Tags)
+    }
+
+    fun goBack() {
+        val stack = stacks.getValue(selectedTab)
+        if (stack.size > 1) {
+            stack.removeAt(stack.lastIndex)
+        } else {
+            selectTab(AppTab.Timetable)
+        }
+    }
+
+    @Composable
+    fun entries(provider: (NavKey) -> NavEntry<NavKey>): List<NavEntry<NavKey>> {
+        // Retain an entry's saveable state even while its tab is not displayed.
+        val entriesByTab = stacks.mapValues { (tab, stack) ->
+            key(tab) {
+                rememberDecoratedNavEntries(
+                    backStack = stack,
+                    entryDecorators = listOf(rememberSaveableStateHolderNavEntryDecorator()),
+                    entryProvider = provider,
+                )
+            }
+        }
+        val visibleTabs = if (selectedTab == AppTab.Timetable) {
+            listOf(AppTab.Timetable)
+        } else {
+            listOf(AppTab.Timetable, selectedTab)
+        }
+        return visibleTabs.flatMap { entriesByTab.getValue(it) }
+    }
+}
