@@ -217,4 +217,3 @@ private val TimetableDays = listOf(
 private val PeriodCellWidth = 28.dp
 private val HeaderCellHeight = 30.dp
 private val CourseCellHeight = 68.dp
-
