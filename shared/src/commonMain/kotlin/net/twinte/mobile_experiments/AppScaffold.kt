@@ -1,5 +1,9 @@
 package net.twinte.mobile_experiments
 
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
@@ -143,87 +147,124 @@ internal fun AppScaffold(
             }
         },
     ) {
-        Scaffold(
-            containerColor = Color.Transparent,
-            // Screens inset their content at the bottom, not their background.
-            contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal),
-            topBar = {
-                Column(Modifier.statusBarsPadding()) {
-                    Row(
-                        Modifier.fillMaxWidth().heightIn(min = 76.dp).padding(horizontal = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(Modifier.width(76.dp)) {
-                            if (navigator.isNested) {
-                                TwinteIconButton("Back", Lucide.ArrowLeft, navigator::goBack)
-                            } else {
-                                TwinteIconButton("メニュー", Lucide.Menu, { scope.launch { drawer.open() } })
-                            }
-                        }
-                        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                            if (navigator.currentRoute == AppRoute.Timetable) {
-                                Image(
-                                    painterResource(
-                                        if (colors.isDark) Res.drawable.twinte_logo_dark
-                                        else Res.drawable.twinte_logo_light,
-                                    ),
-                                    contentDescription = "Twin:te",
-                                    modifier = Modifier.width(99.dp).height(27.dp),
-                                )
-                            } else {
-                                Text(
-                                    when (navigator.currentRoute) {
-                                        AppRoute.Tags -> "タグ"
-                                        is AppRoute.CourseDetail -> "授業詳細"
-                                        else -> navigator.selectedTab.title
-                                    },
-                                    color = colors.text, fontWeight = FontWeight.Medium,
-                                    maxLines = 2, textAlign = TextAlign.Center,
-                                )
-                            }
-                        }
-                        Column(Modifier.width(88.dp), horizontalAlignment = Alignment.End) {
-                            if (navigator.currentRoute == AppRoute.Timetable) {
-                                Text(
-                                    "${calendarDate.month.number}/${calendarDate.day} (${weekdayLabels[calendarDate.dayOfWeek.ordinal]})",
-                                    color = colors.text, fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                                )
-                                Text(
-                                    calendarLabel ?: "日課未取得", color = colors.muted, fontSize = 10.sp,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                )
-                            } else if (navigator.currentRoute is AppRoute.CourseDetail) {
-                                detailActions(navigator.currentRoute as AppRoute.CourseDetail)
-                            } else if (navigator.isNested) {
-                                TwinteIconButton("メニュー", Lucide.Menu, { scope.launch { drawer.open() } })
-                            }
-                        }
-                    }
-                    val offline = (authUiState.authState as? AuthState.LoggedIn)?.session?.isOffline == true
-                    if (offline || authUiState.message != "Signed in") {
-                        Text(
-                            if (offline) "オフライン・保存したデータを表示" else authUiState.message,
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                            color = colors.muted, fontSize = 12.sp,
-                        )
-                    }
-                    if (authUiState.isLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
-                }
+        val entryContent: @Composable (AppRoute) -> Unit = { route ->
+            AppScreenFrame(
+                route = route, authUiState = authUiState,
+                calendarDate = calendarDate, calendarLabel = calendarLabel,
+                onBack = navigator::goBack, onOpenMenu = { scope.launch { drawer.open() } },
+                detailActions = { if (route is AppRoute.CourseDetail) detailActions(route) },
+            ) {
+                if (route == AppRoute.Timetable) content(route) else BottomInsetScreen { content(route) }
+            }
+        }
+        NavDisplay(
+            entries = navigator.entries(entryProvider {
+                entry<AppRoute.Timetable> { entryContent(it) }
+                entry<AppRoute.Today> { entryContent(it) }
+                entry<AppRoute.Courses> { entryContent(it) }
+                entry<AppRoute.Account> { entryContent(it) }
+                entry<AppRoute.Tags> { entryContent(it) }
+                entry<AppRoute.CourseDetail> { entryContent(it) }
+            }),
+            onBack = navigator::goBack,
+            transitionSpec = {
+                ContentTransform(
+                    slideInHorizontally(tween(250)) { it },
+                    slideOutHorizontally(tween(250)) { -it / 4 },
+                    targetContentZIndex = 1f, sizeTransform = null,
+                )
             },
-        ) { padding ->
-            NavDisplay(
-                entries = navigator.entries(entryProvider {
-                    entry<AppRoute.Timetable> { content(it) }
-                    entry<AppRoute.Today> { BottomInsetScreen { content(it) } }
-                    entry<AppRoute.Courses> { BottomInsetScreen { content(it) } }
-                    entry<AppRoute.Account> { BottomInsetScreen { content(it) } }
-                    entry<AppRoute.Tags> { BottomInsetScreen { content(it) } }
-                    entry<AppRoute.CourseDetail> { BottomInsetScreen { content(it) } }
-                }),
-                onBack = navigator::goBack,
-                modifier = Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()
-                    .testTag("screen-${navigator.currentRoute}"),
-            )
+            popTransitionSpec = { backScreenTransform() },
+            predictivePopTransitionSpec = { backScreenTransform() },
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@Composable
+private fun AppScreenFrame(
+    route: AppRoute,
+    authUiState: AuthUiState,
+    calendarDate: LocalDate,
+    calendarLabel: String?,
+    onBack: () -> Unit,
+    onOpenMenu: () -> Unit,
+    detailActions: @Composable () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val colors = TwinteTheme.colors
+    val isNested = route is AppRoute.CourseDetail || route == AppRoute.Tags
+    Scaffold(
+        modifier = Modifier.fillMaxSize().background(colors.surface).testTag("screen-$route"),
+        containerColor = Color.Transparent,
+        // Screens inset their content at the bottom, not their background.
+        contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal),
+        topBar = {
+            Column(Modifier.statusBarsPadding()) {
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 76.dp).padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.width(76.dp)) {
+                        if (isNested) {
+                            TwinteIconButton("Back", Lucide.ArrowLeft, onBack)
+                        } else {
+                            TwinteIconButton("メニュー", Lucide.Menu, onOpenMenu)
+                        }
+                    }
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                        if (route == AppRoute.Timetable) {
+                            Image(
+                                painterResource(
+                                    if (colors.isDark) Res.drawable.twinte_logo_dark
+                                    else Res.drawable.twinte_logo_light,
+                                ),
+                                contentDescription = "Twin:te",
+                                modifier = Modifier.width(99.dp).height(27.dp),
+                            )
+                        } else {
+                            Text(
+                                when (route) {
+                                    AppRoute.Tags -> "タグ"
+                                    is AppRoute.CourseDetail -> "授業詳細"
+                                    else -> AppTab.entries.first { it.root == route }.title
+                                },
+                                color = colors.text, fontWeight = FontWeight.Medium,
+                                maxLines = 2, textAlign = TextAlign.Center,
+                            )
+                        }
+                    }
+                    Column(Modifier.width(88.dp), horizontalAlignment = Alignment.End) {
+                        if (route == AppRoute.Timetable) {
+                            Text(
+                                "${calendarDate.month.number}/${calendarDate.day} (${weekdayLabels[calendarDate.dayOfWeek.ordinal]})",
+                                color = colors.text, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                            )
+                            Text(
+                                calendarLabel ?: "日課未取得", color = colors.muted, fontSize = 10.sp,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                        } else if (route is AppRoute.CourseDetail) {
+                            detailActions()
+                        } else if (isNested) {
+                            TwinteIconButton("メニュー", Lucide.Menu, onOpenMenu)
+                        }
+                    }
+                }
+                val offline = (authUiState.authState as? AuthState.LoggedIn)?.session?.isOffline == true
+                if (offline || authUiState.message != "Signed in") {
+                    Text(
+                        if (offline) "オフライン・保存したデータを表示" else authUiState.message,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                        color = colors.muted, fontSize = 12.sp,
+                    )
+                }
+                if (authUiState.isLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
+        },
+    ) { padding ->
+        Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
+            content()
         }
     }
 }
@@ -281,3 +322,9 @@ internal fun AppIconButton(description: String, image: ImageVector, onClick: () 
 }
 
 private val weekdayLabels = listOf("月", "火", "水", "木", "金", "土", "日")
+
+private fun backScreenTransform() = ContentTransform(
+    slideInHorizontally(tween(250)) { -it / 4 },
+    slideOutHorizontally(tween(250)) { it },
+    targetContentZIndex = -1f, sizeTransform = null,
+)
