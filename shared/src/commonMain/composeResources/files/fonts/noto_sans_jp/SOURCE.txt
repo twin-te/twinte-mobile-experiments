@@ -1,0 +1,8 @@
+Noto Sans JP static fonts, unmodified.
+
+Source: https://github.com/notofonts/noto-cjk/tree/523d033d6cb47f4a80c58a35753646f5c3608a78/Sans/SubsetOTF/JP
+Fonts: NotoSansJP-Regular.otf, NotoSansJP-Medium.otf, NotoSansJP-Bold.otf
+License: SIL Open Font License 1.1 (see OFL.txt alongside this file).
+
+Bundled to keep typography consistent across Android and iOS, including offline use.
+Static fonts also support Android API 24 and 25, which cannot use variable fonts.

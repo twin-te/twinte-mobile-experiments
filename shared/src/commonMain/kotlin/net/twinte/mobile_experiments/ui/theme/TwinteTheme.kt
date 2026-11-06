@@ -12,7 +12,14 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import org.jetbrains.compose.resources.Font
+import twinte_mobile_experiments.shared.generated.resources.Res
+import twinte_mobile_experiments.shared.generated.resources.noto_sans_jp_bold
+import twinte_mobile_experiments.shared.generated.resources.noto_sans_jp_medium
+import twinte_mobile_experiments.shared.generated.resources.noto_sans_jp_regular
 
 @Immutable
 internal data class TwinteColors(
@@ -32,6 +39,8 @@ internal data class TwinteColors(
     val shadowDark: Color,
     val insetLight: Color,
     val insetDark: Color,
+    val inputInsetLight: Color,
+    val inputInsetDark: Color,
     val isDark: Boolean,
 ) {
     val surface: Brush get() = Brush.linearGradient(listOf(surfaceStart, surfaceEnd))
@@ -55,6 +64,8 @@ private val lightColors = TwinteColors(
     shadowDark = Color(0x739BB1BF),
     insetLight = Color(0x73FFFFFF),
     insetDark = Color(0x3EAEBECD),
+    inputInsetLight = Color.White,
+    inputInsetDark = Color(0xA4B1BDC8),
     isDark = false,
 )
 
@@ -75,6 +86,8 @@ private val darkColors = TwinteColors(
     shadowDark = Color(0xE80B0C0D),
     insetLight = Color(0x513D435A),
     insetDark = Color(0xD612141B),
+    inputInsetLight = Color(0x498A92B2),
+    inputInsetDark = Color(0x9C000000),
     isDark = true,
 )
 
@@ -84,7 +97,7 @@ internal object TwinteTheme {
     val colors: TwinteColors @Composable get() = LocalColors.current
 }
 
-private val typography = Typography(
+private val baseTypography = Typography(
     bodyLarge = TextStyle(fontSize = 14.sp, lineHeight = 20.sp),
     bodyMedium = TextStyle(fontSize = 14.sp, lineHeight = 20.sp),
     bodySmall = TextStyle(fontSize = 12.sp, lineHeight = 17.sp),
@@ -95,6 +108,34 @@ private val typography = Typography(
     labelMedium = TextStyle(fontSize = 12.sp, lineHeight = 17.sp),
     labelSmall = TextStyle(fontSize = 10.sp, lineHeight = 14.sp),
 )
+
+@Composable
+private fun twinteTypography(): Typography {
+    val family = FontFamily(
+        Font(Res.font.noto_sans_jp_regular, FontWeight.Normal),
+        Font(Res.font.noto_sans_jp_medium, FontWeight.Medium),
+        Font(Res.font.noto_sans_jp_bold, FontWeight.Bold),
+    )
+    return with(baseTypography) {
+        copy(
+            displayLarge = displayLarge.copy(fontFamily = family, letterSpacing = 0.sp),
+            displayMedium = displayMedium.copy(fontFamily = family, letterSpacing = 0.sp),
+            displaySmall = displaySmall.copy(fontFamily = family, letterSpacing = 0.sp),
+            headlineLarge = headlineLarge.copy(fontFamily = family, letterSpacing = 0.sp),
+            headlineMedium = headlineMedium.copy(fontFamily = family, letterSpacing = 0.sp),
+            headlineSmall = headlineSmall.copy(fontFamily = family, letterSpacing = 0.sp),
+            titleLarge = titleLarge.copy(fontFamily = family, letterSpacing = 0.sp),
+            titleMedium = titleMedium.copy(fontFamily = family, letterSpacing = 0.sp),
+            titleSmall = titleSmall.copy(fontFamily = family, letterSpacing = 0.sp),
+            bodyLarge = bodyLarge.copy(fontFamily = family, letterSpacing = 0.sp),
+            bodyMedium = bodyMedium.copy(fontFamily = family, letterSpacing = 0.sp),
+            bodySmall = bodySmall.copy(fontFamily = family, letterSpacing = 0.sp),
+            labelLarge = labelLarge.copy(fontFamily = family, letterSpacing = 0.sp),
+            labelMedium = labelMedium.copy(fontFamily = family, letterSpacing = 0.sp),
+            labelSmall = labelSmall.copy(fontFamily = family, letterSpacing = 0.sp),
+        )
+    }
+}
 
 @Composable
 internal fun TwinteTheme(
@@ -122,6 +163,6 @@ internal fun TwinteTheme(
         )
     }
     CompositionLocalProvider(LocalColors provides colors) {
-        MaterialTheme(colorScheme = scheme, typography = typography, content = content)
+        MaterialTheme(colorScheme = scheme, typography = twinteTypography(), content = content)
     }
 }
