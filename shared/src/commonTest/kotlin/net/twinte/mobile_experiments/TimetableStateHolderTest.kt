@@ -130,6 +130,66 @@ class TimetableStateHolderTest {
     }
 
     @Test
+    fun createsManualCourseAndRefreshesDailySchedule() = runTest {
+        val date = LocalDate(2026, 5, 1)
+        val input = CreateRegisteredCourseInput(
+            year = 2026,
+            name = "Seminar",
+            instructors = "Teacher",
+            credit = "1.0",
+            methods = listOf(CourseMethod.FaceToFace),
+            schedules = listOf(CourseSchedule(Module.SpringA, Day.Monday, 1, "3A204")),
+        )
+        val timetableService = FakeTimetableService()
+        val dailyService = FakeDailyTimetableService()
+        val stateHolder = TimetableStateHolder(
+            timetableService = timetableService,
+            dailyTimetableService = dailyService,
+            initialDate = date,
+            scope = backgroundScope,
+            onFailure = {},
+        )
+        var completed = false
+        stateHolder.bind("user-id", date)
+        runCurrent()
+
+        stateHolder.createCourseManually(input) { completed = true }
+        runCurrent()
+
+        assertEquals(listOf(input), timetableService.createdManualInputs)
+        assertTrue(completed)
+        assertEquals(listOf(date), dailyService.refreshedDates)
+        assertEquals("Created Seminar", stateHolder.courseOperationsUiState.value.message)
+    }
+
+    @Test
+    fun failedManualCreationDoesNotCloseEditor() = runTest {
+        val date = LocalDate(2026, 5, 1)
+        val failure = IllegalStateException("offline")
+        val failures = mutableListOf<Throwable>()
+        val stateHolder = TimetableStateHolder(
+            timetableService = FakeTimetableService(manualCreateOperation = { throw failure }),
+            dailyTimetableService = FakeDailyTimetableService(),
+            initialDate = date,
+            scope = backgroundScope,
+            onFailure = failures::add,
+        )
+        var completed = false
+        stateHolder.bind("user-id", date)
+        runCurrent()
+
+        stateHolder.createCourseManually(
+            CreateRegisteredCourseInput(2026, "Seminar", "Teacher", "1.0", emptyList(), emptyList()),
+        ) { completed = true }
+        runCurrent()
+
+        assertFalse(completed)
+        assertTrue(stateHolder.courseOperationsUiState.value.operationFailed)
+        assertEquals(1, failures.size)
+        assertSame(failure, failures.single())
+    }
+
+    @Test
     fun keepsCourseMutationSuccessfulWhenDailyRefreshFails() = runTest {
         val searchResult = catalogCourse("GB12345", "Distributed Systems")
         val timetableService = FakeTimetableService(searchResults = listOf(searchResult))
@@ -182,12 +242,16 @@ class TimetableStateHolderTest {
         stateHolder.bind("user-id", date)
         runCurrent()
 
-        stateHolder.updateCourse(UpdateRegisteredCourseInput(registeredCourse.id, name = "Renamed"))
+        var updateCompleted = false
+        stateHolder.updateCourse(UpdateRegisteredCourseInput(registeredCourse.id, name = "Renamed")) {
+            updateCompleted = true
+        }
         runCurrent()
         stateHolder.deleteCourse(registeredCourse)
         runCurrent()
 
         assertEquals(listOf(registeredCourse.id), timetableService.updatedCourseIds)
+        assertTrue(updateCompleted)
         assertEquals(listOf(registeredCourse.id), timetableService.deletedCourseIds)
         assertEquals(listOf(date, date), dailyService.refreshedDates)
     }
@@ -610,6 +674,7 @@ private class FakeTimetableService(
     private val searchResults: List<Course> = emptyList(),
     private val searchResultProvider: (suspend (SearchCoursesInput) -> List<Course>)? = null,
     private val refreshOperation: suspend (String) -> Unit = {},
+    private val manualCreateOperation: suspend () -> Unit = {},
     private val updateOperation: suspend () -> Unit = {},
     private val snapshotsByAccount: Map<String, MutableStateFlow<TimetableSnapshot>> = emptyMap(),
 ) : TimetableService {
@@ -618,6 +683,7 @@ private class FakeTimetableService(
     var lastSearchInput: SearchCoursesInput? = null
         private set
     val registeredCodes = mutableListOf<String>()
+    val createdManualInputs = mutableListOf<CreateRegisteredCourseInput>()
     val updatedCourseIds = mutableListOf<String>()
     val deletedCourseIds = mutableListOf<String>()
     val createdTagNames = mutableListOf<String>()
@@ -648,8 +714,19 @@ private class FakeTimetableService(
         return emptyList()
     }
 
-    override suspend fun createCourseManually(accountId: String, input: CreateRegisteredCourseInput) =
-        error("Unused in this test")
+    override suspend fun createCourseManually(accountId: String, input: CreateRegisteredCourseInput): RegisteredCourse {
+        createdManualInputs += input
+        manualCreateOperation()
+        return RegisteredCourse(
+            id = "manual-id",
+            year = input.year,
+            name = input.name,
+            instructors = input.instructors,
+            credit = input.credit,
+            methods = input.methods,
+            schedules = input.schedules,
+        )
+    }
 
     override suspend fun updateCourse(accountId: String, input: UpdateRegisteredCourseInput): RegisteredCourse {
         updatedCourseIds += input.id

@@ -5,12 +5,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import net.twinte.mobile_experiments.core.domain.Course
+import net.twinte.mobile_experiments.core.domain.CreateRegisteredCourseInput
 import net.twinte.mobile_experiments.core.domain.RegisteredCourse
 import net.twinte.mobile_experiments.core.domain.Tag
 import net.twinte.mobile_experiments.core.domain.UpdateRegisteredCourseInput
@@ -39,7 +37,8 @@ internal fun CourseOperationsSection(
     uiState: CourseOperationsUiState,
     onSearch: (String) -> Unit,
     onRegister: (Course) -> Unit,
-    onUpdate: (UpdateRegisteredCourseInput) -> Unit,
+    onCreateCourse: (CreateRegisteredCourseInput, () -> Unit) -> Unit,
+    onUpdate: (UpdateRegisteredCourseInput, () -> Unit) -> Unit,
     onDelete: (RegisteredCourse) -> Unit,
     onCreateTag: (String) -> Unit,
     onUpdateTag: (Tag, String) -> Unit,
@@ -47,6 +46,7 @@ internal fun CourseOperationsSection(
     onMoveTag: (Tag, Int) -> Unit,
 ) {
     var query by remember(selectedYear) { mutableStateOf("") }
+    var creatingCourse by remember { mutableStateOf(false) }
     var editingCourse by remember { mutableStateOf<RegisteredCourse?>(null) }
     var deletingCourse by remember { mutableStateOf<RegisteredCourse?>(null) }
     val registeredCodes = registeredCourses.mapNotNullTo(mutableSetOf()) { it.code }
@@ -87,6 +87,12 @@ internal fun CourseOperationsSection(
     }
 
     Text("Registered courses ($selectedYear)", style = MaterialTheme.typography.titleMedium)
+    OutlinedButton(
+        enabled = !uiState.isLoading,
+        onClick = { creatingCourse = true },
+    ) {
+        Text("Create course")
+    }
     if (registeredCourses.isEmpty()) {
         Text("No registered courses", style = MaterialTheme.typography.bodyMedium)
     }
@@ -109,14 +115,27 @@ internal fun CourseOperationsSection(
         onMove = onMoveTag,
     )
 
-    editingCourse?.let { course ->
-        EditRegisteredCourseDialog(
-            course = course,
+    if (creatingCourse) {
+        CourseEditorDialog(
+            course = null,
+            year = selectedYear,
             tags = tags,
-            onConfirm = { input ->
-                editingCourse = null
-                onUpdate(input)
-            },
+            isSaving = uiState.isLoading,
+            saveFailed = uiState.operationFailed,
+            onCreate = onCreateCourse,
+            onUpdate = onUpdate,
+            onDismiss = { creatingCourse = false },
+        )
+    }
+    editingCourse?.let { course ->
+        CourseEditorDialog(
+            course = course,
+            year = selectedYear,
+            tags = tags,
+            isSaving = uiState.isLoading,
+            saveFailed = uiState.operationFailed,
+            onCreate = onCreateCourse,
+            onUpdate = onUpdate,
             onDismiss = { editingCourse = null },
         )
     }
@@ -217,97 +236,4 @@ private fun RegisteredCourseRow(
             Text("Delete")
         }
     }
-}
-
-@Composable
-private fun EditRegisteredCourseDialog(
-    course: RegisteredCourse,
-    tags: List<Tag>,
-    onConfirm: (UpdateRegisteredCourseInput) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var name by remember(course.id) { mutableStateOf(course.name) }
-    var instructors by remember(course.id) { mutableStateOf(course.instructors) }
-    var credit by remember(course.id) { mutableStateOf(course.credit) }
-    var memo by remember(course.id) { mutableStateOf(course.memo) }
-    var selectedTagIds by remember(course.id) { mutableStateOf(course.tagIds.toSet()) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Edit course") },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Name") },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = instructors,
-                    onValueChange = { instructors = it },
-                    label = { Text("Instructors") },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = credit,
-                    onValueChange = { credit = it },
-                    label = { Text("Credit") },
-                    singleLine = true,
-                )
-                OutlinedTextField(
-                    value = memo,
-                    onValueChange = { memo = it },
-                    label = { Text("Memo") },
-                    minLines = 2,
-                    maxLines = 4,
-                )
-                if (tags.isNotEmpty()) {
-                    Text("Tags", style = MaterialTheme.typography.titleSmall)
-                    tags.forEach { tag ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(
-                                checked = tag.id in selectedTagIds,
-                                onCheckedChange = { checked ->
-                                    selectedTagIds = if (checked) {
-                                        selectedTagIds + tag.id
-                                    } else {
-                                        selectedTagIds - tag.id
-                                    }
-                                },
-                            )
-                            Text(tag.name)
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                enabled = name.isNotBlank(),
-                onClick = {
-                    onConfirm(
-                        UpdateRegisteredCourseInput(
-                            id = course.id,
-                            name = name,
-                            instructors = instructors,
-                            credit = credit,
-                            memo = memo,
-                            tagIds = selectedTagIds.toList(),
-                        ),
-                    )
-                },
-            ) {
-                Text("Save")
-            }
-        },
-        dismissButton = {
-            OutlinedButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        },
-    )
 }
