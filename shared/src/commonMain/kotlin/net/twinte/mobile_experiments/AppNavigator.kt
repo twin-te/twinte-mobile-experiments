@@ -28,10 +28,10 @@ internal sealed interface AppRoute : NavKey {
 }
 
 internal enum class AppTab(val root: AppRoute, val title: String) {
-    Timetable(AppRoute.Timetable, "Timetable"),
-    Today(AppRoute.Today, "Today"),
-    Courses(AppRoute.Courses, "Courses"),
-    Account(AppRoute.Account, "Account"),
+    Timetable(AppRoute.Timetable, "ホーム"),
+    Today(AppRoute.Today, "今日の時間割"),
+    Courses(AppRoute.Courses, "授業の追加"),
+    Account(AppRoute.Account, "アカウント"),
 }
 
 // Explicit registration avoids reflection-only route restoration on iOS.
@@ -72,6 +72,12 @@ internal class AppNavigator(
         selectTab(AppTab.Courses)
         val stack = stacks.getValue(AppTab.Courses)
         if (stack.last() != AppRoute.Tags) stack.add(AppRoute.Tags)
+    }
+
+    fun openCourseSearch() {
+        selectTab(AppTab.Courses)
+        val stack = stacks.getValue(AppTab.Courses)
+        while (stack.size > 1) stack.removeAt(stack.lastIndex)
     }
 
     fun goBack() {

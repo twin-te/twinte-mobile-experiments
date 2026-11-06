@@ -28,6 +28,7 @@ import net.twinte.mobile_experiments.core.timetable.DailyCourseSlot
 import net.twinte.mobile_experiments.core.timetable.DailyTimetableService
 import net.twinte.mobile_experiments.core.timetable.TimetableService
 import net.twinte.mobile_experiments.core.timetable.TimetableSnapshot
+import net.twinte.mobile_experiments.feature.timetable.calendarModuleToTimetableModule
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
@@ -37,14 +38,12 @@ private val automaticSyncInterval = 5.minutes
 internal data class TimetableUiState(
     val selectedYear: Int,
     val selectedModule: Module = Module.SpringA,
-    val message: String = "No saved timetable",
     val isLoading: Boolean = false,
-    val courseCount: Int? = null,
-    val tagCount: Int? = null,
     val cells: Map<TimetableSlot, List<TimetableCourseSummary>> = emptyMap(),
     val registeredCourses: List<RegisteredCourse> = emptyList(),
     val tags: List<Tag> = emptyList(),
     val lastSuccessfulSyncAt: Instant? = null,
+    val refreshFailed: Boolean = false,
 )
 
 internal data class CourseOperationsUiState(
@@ -62,18 +61,22 @@ internal data class TimetableSlot(
 internal data class TimetableCourseSummary(
     val name: String,
     val locations: String,
+    val id: String,
 )
 
 internal data class DailyTimetableUiState(
     val message: String = "No saved daily schedule",
     val isLoading: Boolean = false,
     val date: LocalDate,
-    val moduleLabel: String? = null,
+    val module: Module? = null,
     val eventLabel: String? = null,
     val lectureCount: Int? = null,
     val firstCourseName: String? = null,
     val lastSuccessfulSyncAt: Instant? = null,
-)
+) {
+    val moduleLabel: String? get() = module?.label
+    val currentModule: Module? get() = calendarModuleToTimetableModule(module, date)
+}
 
 internal class TimetableStateHolder(
     private val timetableService: TimetableService,
@@ -83,12 +86,16 @@ internal class TimetableStateHolder(
     private val onFailure: (Throwable) -> Unit,
     private val now: () -> Instant = Clock.System::now,
     initialYear: Int = initialDate.academicYear,
-    initialModule: Module = Module.SpringA,
+    initialModule: Module? = null,
 ) {
     private val _timetableUiState = MutableStateFlow(
-        TimetableUiState(selectedYear = initialYear, selectedModule = initialModule),
+        TimetableUiState(selectedYear = initialYear, selectedModule = initialModule ?: Module.SpringA),
     )
     val timetableUiState: StateFlow<TimetableUiState> = _timetableUiState.asStateFlow()
+    private var moduleInitialized = initialModule != null
+    // Keep initialization pending across restoration if the calendar has not arrived yet.
+    val moduleForRestoration: Module?
+        get() = _timetableUiState.value.selectedModule.takeIf { moduleInitialized }
 
     private val _courseOperationsUiState = MutableStateFlow(CourseOperationsUiState())
     val courseOperationsUiState: StateFlow<CourseOperationsUiState> = _courseOperationsUiState.asStateFlow()
@@ -157,31 +164,41 @@ internal class TimetableStateHolder(
         selectYear(_timetableUiState.value.selectedYear + 1)
     }
 
+    fun selectCurrentModule(module: Module) {
+        val currentModule = calendarModuleToTimetableModule(module, date) ?: return
+        if (_timetableUiState.value.selectedYear != date.academicYear) selectYear(date.academicYear)
+        selectModule(currentModule)
+    }
+
     fun selectModule(module: Module) {
+        moduleInitialized = true
         val current = _timetableUiState.value
         if (module == current.selectedModule) return
         _timetableUiState.value = timetableSnapshot.toUiState(
             selectedYear = current.selectedYear,
             selectedModule = module,
             isLoading = current.isLoading,
+            refreshFailed = current.refreshFailed,
         )
     }
 
     fun refreshTimetable() {
         if (timetableRefresh?.isActive == true) return
         val accountId = accountId ?: return
-        _timetableUiState.update { it.copy(isLoading = true, message = "Refreshing timetable...") }
+        _timetableUiState.update {
+            it.copy(isLoading = true, refreshFailed = false)
+        }
         timetableRefresh = scope.launch {
             val succeeded = runRefresh(
                 operation = { timetableService.refresh(accountId) },
                 onError = {
                     _timetableUiState.update {
-                        it.copy(message = "Refresh failed; showing saved timetable", isLoading = false)
+                        it.copy(isLoading = false, refreshFailed = true)
                     }
                 },
             )
             if (succeeded) {
-                _timetableUiState.update { it.copy(isLoading = false) }
+                _timetableUiState.update { it.copy(isLoading = false, refreshFailed = false) }
             }
         }
     }
@@ -336,6 +353,7 @@ internal class TimetableStateHolder(
                     selectedYear = current.selectedYear,
                     selectedModule = current.selectedModule,
                     isLoading = current.isLoading,
+                    refreshFailed = current.refreshFailed,
                 )
                 timetableCacheObserved = true
                 syncTimetableIfReady()
@@ -356,7 +374,7 @@ internal class TimetableStateHolder(
                     DailyTimetableUiState(
                         message = "Showing saved daily schedule",
                         date = timetable.date,
-                        moduleLabel = timetable.module.label,
+                        module = timetable.module,
                         eventLabel = timetable.eventLabel,
                         lectureCount = timetable.lectureCount,
                         firstCourseName = timetable.slots
@@ -367,6 +385,7 @@ internal class TimetableStateHolder(
                     )
                 }
                 _dailyTimetableUiState.value = updated.copy(isLoading = current.isLoading)
+                if (!moduleInitialized) updated.currentModule?.let(::selectModule)
                 dailyCacheObserved = true
                 syncDailyIfReady()
             }
@@ -470,6 +489,7 @@ internal class TimetableStateHolder(
             selectedYear = year,
             selectedModule = current.selectedModule,
             isLoading = current.isLoading,
+            refreshFailed = current.refreshFailed,
         )
     }
 }
@@ -482,7 +502,7 @@ internal fun rememberTimetableStateHolder(
     scope: CoroutineScope,
     onFailure: (Throwable) -> Unit,
 ): TimetableStateHolder {
-    fun create(year: Int, module: Module) = TimetableStateHolder(
+    fun create(year: Int, module: Module?) = TimetableStateHolder(
         timetableService = timetableService,
         dailyTimetableService = dailyTimetableService,
         initialDate = initialDate,
@@ -495,22 +515,23 @@ internal fun rememberTimetableStateHolder(
     val saver = listSaver<TimetableStateHolder, String>(
         save = {
             val state = it.timetableUiState.value
-            listOf(state.selectedYear.toString(), state.selectedModule.name)
+            listOf(state.selectedYear.toString(), it.moduleForRestoration?.name.orEmpty())
         },
-        restore = { create(it[0].toInt(), Module.valueOf(it[1])) },
+        restore = { create(it[0].toInt(), it[1].takeIf(String::isNotEmpty)?.let(Module::valueOf)) },
     )
     return rememberSaveable(timetableService, dailyTimetableService, scope, onFailure, saver = saver) {
-        create(initialDate.academicYear, Module.SpringA)
+        create(initialDate.academicYear, null)
     }
 }
 
-private val LocalDate.academicYear: Int
+internal val LocalDate.academicYear: Int
     get() = if (month >= Month.APRIL) year else year - 1
 
 private fun TimetableSnapshot.toUiState(
     selectedYear: Int,
     selectedModule: Module,
     isLoading: Boolean = false,
+    refreshFailed: Boolean = false,
 ): TimetableUiState {
     val selectedCourses = courses.filter { it.year == selectedYear }
     val cells = selectedCourses
@@ -521,6 +542,7 @@ private fun TimetableSnapshot.toUiState(
                     TimetableSlot(schedule.day, schedule.period) to TimetableCourseSummary(
                         name = course.name,
                         locations = schedule.locations,
+                        id = course.id,
                     )
                 }
         }
@@ -528,13 +550,11 @@ private fun TimetableSnapshot.toUiState(
     return TimetableUiState(
         selectedYear = selectedYear,
         selectedModule = selectedModule,
-        message = if (lastSuccessfulSyncAt == null) "No saved timetable" else "Showing saved timetable",
         isLoading = isLoading,
-        courseCount = selectedCourses.size,
-        tagCount = tags.size,
         cells = cells,
         registeredCourses = selectedCourses,
         tags = tags.sortedBy(Tag::order),
         lastSuccessfulSyncAt = lastSuccessfulSyncAt,
+        refreshFailed = refreshFailed,
     )
 }
