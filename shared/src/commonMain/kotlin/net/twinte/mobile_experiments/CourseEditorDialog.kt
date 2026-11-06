@@ -23,6 +23,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSerializable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,10 +49,10 @@ internal fun CourseEditorDialog(
     onUpdate: (UpdateRegisteredCourseInput, () -> Unit) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var draft by remember(course?.id, year) {
+    var draft by rememberSerializable(course?.id, year) {
         mutableStateOf(course?.let(CourseEditorDraft::fromCourse) ?: CourseEditorDraft(year))
     }
-    var saveAttempted by remember(course?.id, year) { mutableStateOf(false) }
+    var saveAttempted by rememberSaveable(course?.id, year) { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = { if (!isSaving) onDismiss() },

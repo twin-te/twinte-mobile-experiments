@@ -1,7 +1,9 @@
 package net.twinte.mobile_experiments.core.domain
 
 import kotlinx.datetime.LocalDate
+import kotlinx.serialization.Serializable
 
+@Serializable
 enum class Module(val label: String) {
     Unknown(""),
     SpringA("春A"),
@@ -15,6 +17,7 @@ enum class Module(val label: String) {
     SpringVacation("春休み"),
 }
 
+@Serializable
 enum class Day(val label: String) {
     Sunday("日曜"),
     Monday("月曜"),
@@ -29,6 +32,7 @@ enum class Day(val label: String) {
     Nt("NT"),
 }
 
+@Serializable
 enum class CourseMethod {
     OnlineAsynchronous,
     OnlineSynchronous,
@@ -44,6 +48,7 @@ enum class EventType {
     Other,
 }
 
+@Serializable
 data class CourseSchedule(
     val module: Module,
     val day: Day,

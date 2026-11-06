@@ -1,5 +1,6 @@
 package net.twinte.mobile_experiments
 
+import kotlinx.serialization.Serializable
 import net.twinte.mobile_experiments.core.domain.CourseMethod
 import net.twinte.mobile_experiments.core.domain.CourseSchedule
 import net.twinte.mobile_experiments.core.domain.CreateRegisteredCourseInput
@@ -41,6 +42,7 @@ private val regularDays = setOf(
 
 internal fun Day.isRegular(): Boolean = this in regularDays
 
+@Serializable
 internal data class CourseEditorDraft(
     val year: Int,
     val name: String = "",

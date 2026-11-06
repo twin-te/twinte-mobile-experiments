@@ -8,12 +8,9 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
-import net.twinte.mobile_experiments.core.auth.AppleSignInCredential
-import net.twinte.mobile_experiments.core.auth.AuthService
 import net.twinte.mobile_experiments.core.auth.AuthSession
 import net.twinte.mobile_experiments.core.auth.AuthState
 import net.twinte.mobile_experiments.core.auth.SignOutResult
-import net.twinte.mobile_experiments.core.domain.AuthProvider
 import net.twinte.mobile_experiments.core.domain.User
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -21,6 +18,18 @@ import kotlin.test.assertIs
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AuthStateHolderTest {
+    @Test
+    fun initialStateWaitsForSessionRestoration() = runTest {
+        val holder = AuthStateHolder(
+            authService = FakeAuthService(),
+            googleIdTokenProvider = UnavailableGoogleIdTokenProvider,
+            appleSignInCredentialProvider = UnavailableAppleSignInCredentialProvider,
+            scope = backgroundScope,
+        )
+        assertEquals(AuthState.Unknown, holder.uiState.value.authState)
+        assertEquals(true, holder.uiState.value.isLoading)
+    }
+
     @Test
     fun cachedSessionIsVisibleBeforeOnlineValidationCompletes() = runTest {
         val cached = AuthSession("session-id", User("cached-user", emptyList()))
@@ -158,29 +167,4 @@ class AuthStateHolderTest {
         assertEquals("Signed out locally; remote logout failed", stateHolder.uiState.value.message)
     }
 
-    private class FakeAuthService(
-        private val restoreResult: AuthSession? = null,
-        private val cachedResult: AuthSession? = null,
-        private val restoreOperation: suspend () -> AuthSession? = { restoreResult },
-        private val signOutResult: SignOutResult = SignOutResult.RemoteAndLocal,
-    ) : AuthService {
-        override suspend fun restoreCachedSession(): AuthSession? = cachedResult
-
-        override suspend fun restoreSession(): AuthSession? = restoreOperation()
-
-        override suspend fun signInWithGoogleIdToken(idToken: String): AuthSession =
-            error("Not used")
-
-        override suspend fun signInWithAppleCredential(credential: AppleSignInCredential): AuthSession =
-            error("Not used")
-
-        override suspend fun getMe(): User = error("Not used")
-
-        override suspend fun signOut(): SignOutResult = signOutResult
-
-        override suspend fun deleteUserAuthentication(provider: AuthProvider): AuthSession =
-            error("Not used")
-
-        override suspend fun deleteAccount() = error("Not used")
-    }
 }

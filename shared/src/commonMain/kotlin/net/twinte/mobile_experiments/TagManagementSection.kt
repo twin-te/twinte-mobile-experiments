@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -18,6 +17,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,12 +34,10 @@ internal fun TagManagementSection(
     onDelete: (Tag) -> Unit,
     onMove: (Tag, Int) -> Unit,
 ) {
-    var newTagName by remember { mutableStateOf("") }
-    var editingTag by remember { mutableStateOf<Tag?>(null) }
+    var newTagName by rememberSaveable { mutableStateOf("") }
+    var editingTagId by rememberSaveable { mutableStateOf<String?>(null) }
     var deletingTag by remember { mutableStateOf<Tag?>(null) }
 
-    HorizontalDivider()
-    Text("Tags", style = MaterialTheme.typography.titleMedium)
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -86,7 +84,7 @@ internal fun TagManagementSection(
                 }
                 TextButton(
                     enabled = enabled,
-                    onClick = { editingTag = tag },
+                    onClick = { editingTagId = tag.id },
                 ) {
                     Text("Rename")
                 }
@@ -101,14 +99,14 @@ internal fun TagManagementSection(
         }
     }
 
-    editingTag?.let { tag ->
+    tags.firstOrNull { it.id == editingTagId }?.let { tag ->
         RenameTagDialog(
             tag = tag,
             onConfirm = { name ->
-                editingTag = null
+                editingTagId = null
                 onUpdate(tag, name)
             },
-            onDismiss = { editingTag = null },
+            onDismiss = { editingTagId = null },
         )
     }
     deletingTag?.let { tag ->
@@ -142,7 +140,7 @@ private fun RenameTagDialog(
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var name by remember(tag.id) { mutableStateOf(tag.name) }
+    var name by rememberSaveable(tag.id) { mutableStateOf(tag.name) }
 
     AlertDialog(
         onDismissRequest = onDismiss,

@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.androidMultiplatformLibrary)
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
+    alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.room3)
     id("net.twinte.pbandk-generation")
@@ -15,7 +16,11 @@ kotlin {
         freeCompilerArgs.add("-Xexpect-actual-classes")
     }
 
-    jvm()
+    jvm {
+        testRuns["test"].executionTask.configure {
+            systemProperty("java.awt.headless", "true")
+        }
+    }
 
     listOf(
         iosArm64(),
@@ -49,6 +54,9 @@ kotlin {
             implementation(libs.compose.ui)
             implementation(libs.compose.components.resources)
             implementation(libs.compose.uiToolingPreview)
+            implementation(libs.navigation3.ui)
+            implementation(libs.lucide)
+            implementation(libs.kotlinx.serialization.core)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.ktor.client.core)
@@ -71,6 +79,11 @@ kotlin {
             implementation(libs.kotlin.test)
             implementation(libs.kotlinx.coroutines.test)
             implementation(libs.ktor.client.mock)
+        }
+        jvmTest.dependencies {
+            implementation(libs.compose.uiTest)
+            implementation(libs.kotlinx.coroutines.swing)
+            implementation(compose.desktop.currentOs)
         }
     }
 }

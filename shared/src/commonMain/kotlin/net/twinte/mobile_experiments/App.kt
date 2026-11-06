@@ -1,11 +1,9 @@
 package net.twinte.mobile_experiments
 
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -13,11 +11,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
-import net.twinte.mobile_experiments.core.auth.AuthState
+import net.twinte.mobile_experiments.core.auth.AuthSession
 import net.twinte.mobile_experiments.core.auth.MemorySessionStore
 import net.twinte.mobile_experiments.core.auth.SessionStore
 import kotlin.time.Clock
@@ -45,32 +44,58 @@ fun App(
             scope = scope,
         )
     }
-    val timetableStateHolder = remember(dependencies, authStateHolder, scope) {
-        TimetableStateHolder(
-            timetableService = dependencies.timetableService,
-            dailyTimetableService = dependencies.dailyTimetableService,
-            initialDate = currentLocalDate(),
-            scope = scope,
-            onFailure = authStateHolder::handleExternalFailure,
-        )
-    }
-
-    val authUiState by authStateHolder.uiState.collectAsState()
-    val timetableUiState by timetableStateHolder.timetableUiState.collectAsState()
-    val courseOperationsUiState by timetableStateHolder.courseOperationsUiState.collectAsState()
-    val dailyTimetableUiState by timetableStateHolder.dailyTimetableUiState.collectAsState()
-    val loggedInState = authUiState.authState as? AuthState.LoggedIn
-    val loggedInUser = loggedInState?.user
-    val lifecycleOwner = LocalLifecycleOwner.current
+    val authUiState by authStateHolder.uiState.collectAsStateWithLifecycle()
 
     LaunchedEffect(authStateHolder) {
         authStateHolder.restoreSession()
     }
-    LaunchedEffect(loggedInUser?.id, loggedInState?.session?.sessionId, lifecycleOwner, timetableStateHolder) {
-        val accountId = loggedInUser?.id
+
+    TwinteTheme {
+        Surface(modifier = Modifier.fillMaxSize()) {
+            AuthenticationGate(
+                uiState = authUiState,
+                isGoogleConfigured = googleIdTokenProvider.isConfigured,
+                isAppleConfigured = appleSignInCredentialProvider.isConfigured,
+                onGoogleSignIn = authStateHolder::signInWithGoogle,
+                onAppleSignIn = authStateHolder::signInWithApple,
+            ) { signedIn ->
+                AuthenticatedApp(
+                    session = signedIn.session,
+                    dependencies = dependencies,
+                    authUiState = authUiState,
+                    authStateHolder = authStateHolder,
+                    isGoogleConfigured = googleIdTokenProvider.isConfigured,
+                    isAppleConfigured = appleSignInCredentialProvider.isConfigured,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AuthenticatedApp(
+    session: AuthSession,
+    dependencies: AppDependencies,
+    authUiState: AuthUiState,
+    authStateHolder: AuthStateHolder,
+    isGoogleConfigured: Boolean,
+    isAppleConfigured: Boolean,
+) {
+    // The gate keys this composition by account, so logout also cancels its pending work.
+    val scope = rememberCoroutineScope()
+    val timetableStateHolder = rememberTimetableStateHolder(
+        timetableService = dependencies.timetableService,
+        dailyTimetableService = dependencies.dailyTimetableService,
+        initialDate = currentLocalDate(),
+        scope = scope,
+        onFailure = authStateHolder::handleExternalFailure,
+    )
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    LaunchedEffect(session.user.id, session.sessionId, lifecycleOwner, timetableStateHolder) {
+        val accountId = session.user.id
         timetableStateHolder.bind(accountId, currentLocalDate())
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            if (accountId == null) return@repeatOnLifecycle
             var date = currentLocalDate()
             timetableStateHolder.bind(accountId, date)
             timetableStateHolder.syncIfStale()
@@ -86,42 +111,13 @@ fun App(
         }
     }
 
-    MaterialTheme {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background,
-        ) {
-            AuthScreen(
-                uiState = authUiState,
-                isGoogleConfigured = googleIdTokenProvider.isConfigured,
-                isAppleConfigured = appleSignInCredentialProvider.isConfigured,
-                onGoogleSignIn = authStateHolder::signInWithGoogle,
-                onAppleSignIn = authStateHolder::signInWithApple,
-                onRefresh = authStateHolder::refreshMe,
-                onUnlinkProvider = authStateHolder::deleteUserAuthentication,
-                onSignOut = authStateHolder::signOut,
-                onDeleteAccount = authStateHolder::deleteAccount,
-                timetableUiState = timetableUiState,
-                onLoadTimetable = timetableStateHolder::refreshTimetable,
-                onPreviousYear = timetableStateHolder::selectPreviousYear,
-                onNextYear = timetableStateHolder::selectNextYear,
-                onSelectModule = timetableStateHolder::selectModule,
-                courseOperationsUiState = courseOperationsUiState,
-                onSearchCourses = timetableStateHolder::searchCourses,
-                onRegisterCourse = timetableStateHolder::registerCourse,
-                onCreateCourse = timetableStateHolder::createCourseManually,
-                onUpdateCourse = timetableStateHolder::updateCourse,
-                onChangeCourseAttendance = timetableStateHolder::changeCourseAttendance,
-                onDeleteCourse = timetableStateHolder::deleteCourse,
-                onCreateTag = timetableStateHolder::createTag,
-                onUpdateTag = timetableStateHolder::updateTag,
-                onDeleteTag = timetableStateHolder::deleteTag,
-                onMoveTag = timetableStateHolder::moveTag,
-                dailyTimetableUiState = dailyTimetableUiState,
-                onLoadDailyTimetable = timetableStateHolder::refreshDailyTimetable,
-            )
-        }
-    }
+    AppNavigation(
+        authUiState = authUiState,
+        authStateHolder = authStateHolder,
+        timetableStateHolder = timetableStateHolder,
+        isGoogleConfigured = isGoogleConfigured,
+        isAppleConfigured = isAppleConfigured,
+    )
 }
 
 private fun currentLocalDate() = Clock.System.todayIn(TimeZone.currentSystemDefault())
