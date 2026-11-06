@@ -2,12 +2,14 @@ package net.twinte.mobile_experiments.core.timetable
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import kotlinx.datetime.LocalDate
 import net.twinte.mobile_experiments.core.api.DailyApiSnapshot
 import net.twinte.mobile_experiments.core.api.DailyTimetableApi
@@ -85,6 +87,26 @@ class DailyTimetableRepositoryTest {
             Instant.fromEpochMilliseconds(100),
             repository.observe("user-id", date).first()?.lastSuccessfulSyncAt,
         )
+    }
+
+    @Test
+    fun cancelledRefreshDoesNotRestoreCacheAfterSignOut() = runTest {
+        val pendingResponse = CompletableDeferred<Unit>()
+        val api = object : DailyTimetableApi {
+            override suspend fun getByDate(session: TwinteSession, date: LocalDate): DailyApiSnapshot {
+                withContext(NonCancellable) { pendingResponse.await() }
+                return DailyApiSnapshot(date, Module.SpringA, emptyList(), emptyList())
+            }
+        }
+        val repository = repository(api, FakeDailyTimetableLocalDataSource())
+        val refresh = launch { repository.refresh("user-id", date) }
+        runCurrent()
+
+        refresh.cancel()
+        pendingResponse.complete(Unit)
+        refresh.join()
+
+        assertNull(repository.observe("user-id", date).first())
     }
 
     @Test

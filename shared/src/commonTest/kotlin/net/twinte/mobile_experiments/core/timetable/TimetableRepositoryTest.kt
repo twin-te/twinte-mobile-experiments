@@ -2,12 +2,14 @@ package net.twinte.mobile_experiments.core.timetable
 
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import net.twinte.mobile_experiments.core.api.TimetableApi
 import net.twinte.mobile_experiments.core.api.TwinteApiException
 import net.twinte.mobile_experiments.core.auth.AuthenticatedSessionProvider
@@ -72,6 +74,27 @@ class TimetableRepositoryTest {
         }
 
         assertEquals(cached, repository.observeTimetable("user-id").first())
+        assertEquals(0, localDataSource.replaceCount)
+    }
+
+    @Test
+    fun cancelledRefreshDoesNotRestoreCacheAfterSignOut() = runTest {
+        val pendingResponse = CompletableDeferred<Unit>()
+        val localDataSource = FakeTimetableLocalDataSource()
+        val repository = repository(
+            timetableApi = FakeTimetableApi(
+                listRegisteredCoursesResult = Result.success(listOf(course("stale-course"))),
+                listCoursesOperation = { withContext(NonCancellable) { pendingResponse.await() } },
+            ),
+            localDataSource = localDataSource,
+        )
+        val refresh = launch { repository.refresh("user-id") }
+        runCurrent()
+
+        refresh.cancel()
+        pendingResponse.complete(Unit)
+        refresh.join()
+
         assertEquals(0, localDataSource.replaceCount)
     }
 

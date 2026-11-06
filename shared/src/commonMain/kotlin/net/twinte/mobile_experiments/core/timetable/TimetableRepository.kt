@@ -1,5 +1,7 @@
 package net.twinte.mobile_experiments.core.timetable
 
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -31,7 +33,9 @@ class TimetableRepository(
     override suspend fun refresh(accountId: String, year: Int?) {
         withTimetableSession(accountId) { session ->
             val courses = timetableApi.listRegisteredCourses(session, year)
+            currentCoroutineContext().ensureActive()
             val tags = timetableApi.listTags(session)
+            currentCoroutineContext().ensureActive()
             localDataSource.replaceSnapshot(
                 accountId = accountId,
                 year = year,

@@ -4,6 +4,8 @@ import net.twinte.mobile_experiments.core.domain.AuthProvider
 import net.twinte.mobile_experiments.core.domain.User
 
 interface AuthService {
+    suspend fun restoreCachedSession(): AuthSession?
+
     suspend fun restoreSession(): AuthSession?
 
     suspend fun signInWithGoogleIdToken(idToken: String): AuthSession

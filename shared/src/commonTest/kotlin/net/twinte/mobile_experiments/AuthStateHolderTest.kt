@@ -1,8 +1,13 @@
 package net.twinte.mobile_experiments
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import net.twinte.mobile_experiments.core.auth.AppleSignInCredential
 import net.twinte.mobile_experiments.core.auth.AuthService
 import net.twinte.mobile_experiments.core.auth.AuthSession
@@ -16,6 +21,96 @@ import kotlin.test.assertIs
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AuthStateHolderTest {
+    @Test
+    fun cachedSessionIsVisibleBeforeOnlineValidationCompletes() = runTest {
+        val cached = AuthSession("session-id", User("cached-user", emptyList()))
+        val validated = AuthSession("session-id", User("updated-user", emptyList()))
+        val pendingValidation = CompletableDeferred<AuthSession?>()
+        val stateHolder = AuthStateHolder(
+            authService = FakeAuthService(
+                cachedResult = cached,
+                restoreOperation = { pendingValidation.await() },
+            ),
+            googleIdTokenProvider = UnavailableGoogleIdTokenProvider,
+            appleSignInCredentialProvider = UnavailableAppleSignInCredentialProvider,
+            scope = backgroundScope,
+        )
+        val restoration = launch { stateHolder.restoreSession() }
+        runCurrent()
+
+        assertEquals(cached, assertIs<AuthState.LoggedIn>(stateHolder.uiState.value.authState).session)
+        assertEquals(false, stateHolder.uiState.value.isLoading)
+        assertEquals("Showing saved data; checking session...", stateHolder.uiState.value.message)
+
+        pendingValidation.complete(validated)
+        restoration.join()
+        assertEquals(validated, assertIs<AuthState.LoggedIn>(stateHolder.uiState.value.authState).session)
+    }
+
+    @Test
+    fun loggingOutDuringValidationIgnoresLateResponse() = runTest {
+        val cached = AuthSession("session-id", User("cached-user", emptyList()))
+        val pendingValidation = CompletableDeferred<Unit>()
+        val stateHolder = AuthStateHolder(
+            authService = FakeAuthService(
+                cachedResult = cached,
+                restoreOperation = {
+                    withContext(NonCancellable) { pendingValidation.await() }
+                    cached
+                },
+            ),
+            googleIdTokenProvider = UnavailableGoogleIdTokenProvider,
+            appleSignInCredentialProvider = UnavailableAppleSignInCredentialProvider,
+            scope = backgroundScope,
+        )
+        val restoration = launch { stateHolder.restoreSession() }
+        runCurrent()
+
+        stateHolder.signOut()
+        runCurrent()
+        pendingValidation.complete(Unit)
+        restoration.join()
+
+        assertEquals(AuthState.LoggedOut, stateHolder.uiState.value.authState)
+    }
+
+    @Test
+    fun offlineFallbackKeepsCachedSessionVisible() = runTest {
+        val cached = AuthSession("session-id", User("cached-user", emptyList()))
+        val stateHolder = AuthStateHolder(
+            authService = FakeAuthService(
+                cachedResult = cached,
+                restoreOperation = { cached.copy(isOffline = true) },
+            ),
+            googleIdTokenProvider = UnavailableGoogleIdTokenProvider,
+            appleSignInCredentialProvider = UnavailableAppleSignInCredentialProvider,
+            scope = backgroundScope,
+        )
+
+        stateHolder.restoreSession()
+
+        assertEquals(cached.copy(isOffline = true), assertIs<AuthState.LoggedIn>(stateHolder.uiState.value.authState).session)
+        assertEquals("Offline; using saved data", stateHolder.uiState.value.message)
+    }
+
+    @Test
+    fun unauthorizedValidationRemovesCachedSession() = runTest {
+        val cached = AuthSession("session-id", User("cached-user", emptyList()))
+        val stateHolder = AuthStateHolder(
+            authService = FakeAuthService(
+                cachedResult = cached,
+                restoreOperation = { null },
+            ),
+            googleIdTokenProvider = UnavailableGoogleIdTokenProvider,
+            appleSignInCredentialProvider = UnavailableAppleSignInCredentialProvider,
+            scope = backgroundScope,
+        )
+
+        stateHolder.restoreSession()
+
+        assertEquals(AuthState.LoggedOut, stateHolder.uiState.value.authState)
+    }
+
     @Test
     fun canceledProviderRequestKeepsLoggedInState() = runTest {
         val existingSession = AuthSession("session-id", User("user-id", emptyList()))
@@ -65,9 +160,13 @@ class AuthStateHolderTest {
 
     private class FakeAuthService(
         private val restoreResult: AuthSession? = null,
+        private val cachedResult: AuthSession? = null,
+        private val restoreOperation: suspend () -> AuthSession? = { restoreResult },
         private val signOutResult: SignOutResult = SignOutResult.RemoteAndLocal,
     ) : AuthService {
-        override suspend fun restoreSession(): AuthSession? = restoreResult
+        override suspend fun restoreCachedSession(): AuthSession? = cachedResult
+
+        override suspend fun restoreSession(): AuthSession? = restoreOperation()
 
         override suspend fun signInWithGoogleIdToken(idToken: String): AuthSession =
             error("Not used")

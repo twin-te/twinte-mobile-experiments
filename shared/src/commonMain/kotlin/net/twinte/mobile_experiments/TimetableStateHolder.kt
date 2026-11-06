@@ -3,6 +3,8 @@ package net.twinte.mobile_experiments
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,7 +24,11 @@ import net.twinte.mobile_experiments.core.timetable.DailyCourseSlot
 import net.twinte.mobile_experiments.core.timetable.DailyTimetableService
 import net.twinte.mobile_experiments.core.timetable.TimetableService
 import net.twinte.mobile_experiments.core.timetable.TimetableSnapshot
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
+
+private val automaticSyncInterval = 5.minutes
 
 internal data class TimetableUiState(
     val selectedYear: Int,
@@ -70,6 +76,7 @@ internal class TimetableStateHolder(
     initialDate: LocalDate,
     private val scope: CoroutineScope,
     private val onFailure: (Throwable) -> Unit,
+    private val now: () -> Instant = Clock.System::now,
 ) {
     private val initialYear = initialDate.academicYear
     private val _timetableUiState = MutableStateFlow(TimetableUiState(selectedYear = initialYear))
@@ -90,6 +97,10 @@ internal class TimetableStateHolder(
     private var courseSearch: Job? = null
     private var courseOperation: Job? = null
     private var timetableSnapshot = TimetableSnapshot()
+    private var timetableCacheObserved = false
+    private var dailyCacheObserved = false
+    private var timetableSyncRequested = false
+    private var dailySyncRequested = false
 
     fun bind(accountId: String?, date: LocalDate) {
         val accountChanged = this.accountId != accountId
@@ -103,6 +114,8 @@ internal class TimetableStateHolder(
             courseSearch?.cancel()
             courseOperation?.cancel()
             timetableSnapshot = TimetableSnapshot()
+            timetableCacheObserved = false
+            timetableSyncRequested = false
             _timetableUiState.value = TimetableUiState(
                 selectedYear = _timetableUiState.value.selectedYear,
                 selectedModule = _timetableUiState.value.selectedModule,
@@ -113,9 +126,19 @@ internal class TimetableStateHolder(
         if (accountChanged || dateChanged) {
             dailyObservation?.cancel()
             dailyRefresh?.cancel()
+            dailyCacheObserved = false
+            dailySyncRequested = false
             _dailyTimetableUiState.value = DailyTimetableUiState(date = date)
             dailyObservation = accountId?.let { observeDailyTimetable(it, date) }
         }
+    }
+
+    fun syncIfStale() {
+        if (accountId == null) return
+        timetableSyncRequested = true
+        dailySyncRequested = true
+        syncTimetableIfReady()
+        syncDailyIfReady()
     }
 
     fun selectPreviousYear() {
@@ -278,6 +301,7 @@ internal class TimetableStateHolder(
     private fun observeTimetable(accountId: String): Job =
         scope.launch {
             timetableService.observeTimetable(accountId).collect { snapshot ->
+                if (this@TimetableStateHolder.accountId != accountId) return@collect
                 timetableSnapshot = snapshot
                 val current = _timetableUiState.value
                 _timetableUiState.value = snapshot.toUiState(
@@ -285,12 +309,17 @@ internal class TimetableStateHolder(
                     selectedModule = current.selectedModule,
                     isLoading = current.isLoading,
                 )
+                timetableCacheObserved = true
+                syncTimetableIfReady()
             }
         }
 
     private fun observeDailyTimetable(accountId: String, date: LocalDate): Job =
         scope.launch {
             dailyTimetableService.observe(accountId, date).collect { snapshot ->
+                if (this@TimetableStateHolder.accountId != accountId || this@TimetableStateHolder.date != date) {
+                    return@collect
+                }
                 val current = _dailyTimetableUiState.value
                 val updated = if (snapshot == null) {
                     DailyTimetableUiState(date = date)
@@ -310,8 +339,25 @@ internal class TimetableStateHolder(
                     )
                 }
                 _dailyTimetableUiState.value = updated.copy(isLoading = current.isLoading)
+                dailyCacheObserved = true
+                syncDailyIfReady()
             }
         }
+
+    private fun syncTimetableIfReady() {
+        if (!timetableSyncRequested || !timetableCacheObserved) return
+        timetableSyncRequested = false
+        if (needsSync(_timetableUiState.value.lastSuccessfulSyncAt)) refreshTimetable()
+    }
+
+    private fun syncDailyIfReady() {
+        if (!dailySyncRequested || !dailyCacheObserved) return
+        dailySyncRequested = false
+        if (needsSync(_dailyTimetableUiState.value.lastSuccessfulSyncAt)) refreshDailyTimetable()
+    }
+
+    private fun needsSync(lastSuccessfulSyncAt: Instant?): Boolean =
+        lastSuccessfulSyncAt == null || now() - lastSuccessfulSyncAt >= automaticSyncInterval
 
     private suspend fun runRefresh(
         operation: suspend () -> Unit,
@@ -319,10 +365,12 @@ internal class TimetableStateHolder(
     ): Boolean =
         try {
             operation()
+            currentCoroutineContext().ensureActive()
             true
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
+            currentCoroutineContext().ensureActive()
             onFailure(error)
             onError()
             false
