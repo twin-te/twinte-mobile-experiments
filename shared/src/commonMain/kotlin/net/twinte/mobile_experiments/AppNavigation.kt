@@ -1,14 +1,17 @@
 package net.twinte.mobile_experiments
 
+import androidx.compose.foundation.ScrollState
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSerializable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import net.twinte.mobile_experiments.feature.timetable.TimetableCourseDialog
 import net.twinte.mobile_experiments.feature.timetable.TimetableScreen
@@ -25,11 +28,13 @@ internal fun AppNavigation(
     val operations by timetableStateHolder.courseOperationsUiState.collectAsStateWithLifecycle()
     val daily by timetableStateHolder.dailyTimetableUiState.collectAsStateWithLifecycle()
     val navigator = rememberAppNavigator()
+    val scope = rememberCoroutineScope()
     val operationsState = operations.copy(isLoading = operations.isLoading || authUiState.isLoading)
     var selectedCourseIds by rememberSerializable(timetable.selectedYear) { mutableStateOf(emptyList<String>()) }
     var editorTarget by rememberSerializable(timetable.selectedYear) {
         mutableStateOf<CourseEditorTarget>(CourseEditorTarget.Closed)
     }
+    val coursesScroll = rememberSaveable(timetable.selectedYear, saver = ScrollState.Saver) { ScrollState(0) }
     fun openEditor(target: CourseEditorTarget) {
         if (operationsState.isLoading) return
         selectedCourseIds = emptyList()
@@ -56,12 +61,16 @@ internal fun AppNavigation(
                 onCurrentModule = { daily.currentModule?.let(timetableStateHolder::selectCurrentModule) },
                 onSelectModule = timetableStateHolder::selectModule,
                 onOpenCourses = { selectedCourseIds = it },
+                onOpenEmptySlot = {
+                    navigator.openCourseSearch()
+                    scope.launch { coursesScroll.scrollTo(0) }
+                },
             )
             AppRoute.Today -> TodayScreen(
                 uiState = daily.copy(isLoading = daily.isLoading || authUiState.isLoading),
                 onRefresh = timetableStateHolder::refreshDailyTimetable,
             )
-            AppRoute.Courses -> ScreenColumn {
+            AppRoute.Courses -> ScreenColumn(scrollState = coursesScroll) {
                 TimetableYearSelector(
                     year = timetable.selectedYear,
                     onPreviousYear = timetableStateHolder::selectPreviousYear,

@@ -36,22 +36,24 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalTestApi::class)
 class TimetableHomeUiTest {
     @Test
-    fun weekdayHeadersFitTheirTextAtNormalAndLargeFontSizes() {
+    fun weekdayAndModeLabelsFitTheirTextAtNormalAndLargeFontSizes() {
         listOf(1f, 1.3f, 2f).forEach { fontScale ->
             runSkikoComposeUiTest(size = Size(320f, 640f), density = Density(1f, fontScale)) {
                 setContent { TwinteTheme { TestAuthenticatedApp() } }
-                timetableDays.forEach { day ->
-                    val label = onNodeWithTag("weekday-${day.name}").assertIsDisplayed()
+                val labels = timetableDays.map { onNodeWithTag("weekday-${it.name}") } +
+                    listOf(onNodeWithText("通常"), onNodeWithText("特殊"))
+                labels.forEach { node ->
+                    val label = node.assertIsDisplayed()
                     val layouts = mutableListOf<TextLayoutResult>()
                     label.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
                     val layout = layouts.single()
                     assertFalse(
                         layout.didOverflowHeight,
-                        "${day.label} is vertically clipped at fontScale=$fontScale",
+                        "Label is vertically clipped at fontScale=$fontScale: ${layout.layoutInput.text}",
                     )
                     assertTrue(
                         layout.getLineBottom(0) <= layout.size.height,
-                        "${day.label} line exceeds its height at fontScale=$fontScale",
+                        "Label line exceeds its height at fontScale=$fontScale: ${layout.layoutInput.text}",
                     )
                 }
             }
@@ -146,6 +148,7 @@ class TimetableHomeUiTest {
             Triple(Size(390f, 844f), false, 1f),
             Triple(Size(390f, 844f), true, 1f),
             Triple(Size(320f, 640f), false, 1.3f),
+            Triple(Size(320f, 640f), false, 2f),
             Triple(Size(844f, 390f), false, 1f),
             Triple(Size(800f, 1100f), false, 1f),
             Triple(Size(800f, 1100f), true, 1f),
@@ -161,9 +164,9 @@ class TimetableHomeUiTest {
                 saveImage("$prefix-module-menu")
                 onNode(hasText("秋B") and hasAnyAncestor(hasTestTag("module-menu"))).performClick()
                 onNodeWithContentDescription("メニュー").performClick()
-                onNodeWithTag("destination-Courses").assertIsDisplayed()
+                onNodeWithTag("destination-Courses").performScrollTo().assertIsDisplayed()
                 saveImage("$prefix-menu")
-                onNodeWithTag("destination-Timetable").performClick()
+                onNodeWithTag("destination-Timetable").performScrollTo().performClick()
                 onNodeWithText("特殊").performClick()
                 onNodeWithText("集中講義・情報学特別演習").assertIsDisplayed()
                 saveImage("$prefix-special")

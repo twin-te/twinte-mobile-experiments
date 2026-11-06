@@ -60,6 +60,24 @@ class TimetableInteractionUiTest {
     }
 
     @Test
+    fun emptySlotReturnsFromTagsToSearchAtTheTopWithoutDiscardingTheQuery() = runComposeUiTest {
+        setContent { TwinteTheme { TestAuthenticatedApp(withCourse = true) } }
+        onNodeWithContentDescription("メニュー").performClick()
+        onNodeWithTag("destination-Courses").performClick()
+        onNodeWithText("Name or keyword").performTextInput("Retained query")
+        onNodeWithText("Manage tags").performScrollTo().performClick()
+        onNodeWithText("New tag").performTextInput("Tag draft")
+        onNodeWithContentDescription("メニュー").performClick()
+        onNodeWithTag("destination-Timetable").performClick()
+
+        onNodeWithTag("slot-Monday-1").performClick()
+        onNodeWithTag("screen-Courses").assertIsDisplayed()
+        onNodeWithText("Name or keyword").assertIsDisplayed().assertTextContains("Retained query")
+        onNodeWithText("Search", substring = false).assertIsDisplayed()
+        onNodeWithText("New tag").assertDoesNotExist()
+    }
+
+    @Test
     fun sharedEditorRestoresAnUnsavedDraftOpenedFromCourses() = runComposeUiTest {
         val restoration = SaveableComposition()
         val service = FakeTimetableService(initialSnapshot = TimetableSnapshot(courses = testTimetableCourses.take(1)))

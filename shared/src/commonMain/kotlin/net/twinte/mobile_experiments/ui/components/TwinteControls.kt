@@ -7,9 +7,8 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
@@ -17,6 +16,7 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TooltipAnchorPosition
@@ -165,20 +165,21 @@ internal fun TwinteSegmentedControl(
 ) {
     val colors = TwinteTheme.colors
     val shape = RoundedCornerShape(50)
+    val labelStyle = MaterialTheme.typography.labelMedium.copy(lineHeight = 16.sp, fontWeight = FontWeight.Medium)
     Box(
-        modifier = modifier.height(48.dp).selectableGroup(),
+        modifier = modifier.heightIn(min = 48.dp).selectableGroup(),
         contentAlignment = Alignment.Center,
     ) {
         Box(
-            Modifier.fillMaxWidth().height(28.dp).twinteRaised(shape)
+            Modifier.matchParentSize().padding(vertical = 10.dp).twinteRaised(shape)
                 .background(colors.background, shape).twinteInputInset(shape),
         )
-        Row(Modifier.matchParentSize()) {
+        Row(Modifier.fillMaxWidth()) {
             labels.forEachIndexed { index, label ->
                 val isSelected = index == selectedIndex
                 val interaction = remember { MutableInteractionSource() }
                 Box(
-                    modifier = Modifier.weight(1f).fillMaxHeight()
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
                         .selectable(
                             selected = isSelected, interactionSource = interaction, indication = null,
                             role = Role.RadioButton, onClick = { onSelect(index) },
@@ -186,16 +187,16 @@ internal fun TwinteSegmentedControl(
                     contentAlignment = Alignment.Center,
                 ) {
                     Box(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp).height(24.dp)
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp, vertical = 12.dp)
                             .then(
                                 if (isSelected) Modifier.dropShadow(
                                     shape, Shadow(3.dp, colors.shadowDark, offset = DpOffset(2.dp, 2.dp)),
                                 ).background(colors.accentFill, shape) else Modifier,
-                            ),
+                            ).padding(vertical = 4.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
-                            label, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium,
+                            label, style = labelStyle, maxLines = 1,
                             color = if (isSelected) colors.onAccent else colors.muted,
                         )
                     }

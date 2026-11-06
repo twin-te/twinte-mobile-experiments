@@ -16,17 +16,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asSkiaBitmap
 import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.v2.runSkikoComposeUiTest
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import net.twinte.mobile_experiments.core.domain.Module
+import net.twinte.mobile_experiments.feature.timetable.TimetableCourseTile
 import net.twinte.mobile_experiments.feature.timetable.TimetableScreen
 import net.twinte.mobile_experiments.ui.components.twinteBaseSurface
 import net.twinte.mobile_experiments.ui.theme.TwinteTheme
@@ -34,10 +41,61 @@ import org.jetbrains.skia.Image
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalTestApi::class)
 class TwinteAppearanceUiTest {
+    @Test
+    fun selectedControlsUseWhiteTextInBothThemes() {
+        listOf(false, true).forEach { dark ->
+            runSkikoComposeUiTest(size = Size(390f, 844f), density = Density(1f)) {
+                setContent { TwinteTheme(darkTheme = dark) { TestAuthenticatedApp() } }
+                fun textColor(text: String): Color {
+                    val layouts = mutableListOf<TextLayoutResult>()
+                    onNodeWithText(text).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+                    return layouts.single().layoutInput.style.color
+                }
+                assertEquals(Color.White, textColor("通常"))
+                assertEquals(Color.White, textColor("現在の学期"))
+                assertNotEquals(Color.White, textColor("特殊"))
+                onNodeWithText("特殊").performClick()
+                assertEquals(Color.White, textColor("特殊"))
+                assertNotEquals(Color.White, textColor("通常"))
+                onNodeWithText("通常").performClick()
+                onNodeWithContentDescription("学期を選択").performClick()
+                onNodeWithText("春A").performClick()
+                assertNotEquals(Color.White, textColor("現在の学期"))
+            }
+        }
+    }
+
+    @Test
+    fun duplicateBadgeDoesNotCoverTheRoomAtLargeFontSizes() {
+        listOf(1f, 1.3f, 2f).forEach { scale ->
+            listOf(46, 60).forEach { width ->
+                runSkikoComposeUiTest(size = Size(320f, 640f), density = Density(1f, scale)) {
+                    setContent {
+                        TwinteTheme(darkTheme = false) {
+                            Box(Modifier.fillMaxSize().background(TwinteTheme.colors.background)) {
+                                TimetableCourseTile(
+                                    courses = listOf(
+                                        TimetableCourseSummary("社会・国際学群専門科目の非常に長い授業名", "3A204", "first"),
+                                        TimetableCourseSummary("Duplicate", "1A101", "second"),
+                                    ),
+                                    onClick = {}, modifier = Modifier.size(width.dp, (80 * scale).dp),
+                                )
+                            }
+                        }
+                    }
+                    val room = onNodeWithText("3A204", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+                    val badge = onNodeWithText("他1件", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+                    assertTrue(room.bottom <= badge.top, "room=$room, badge=$badge (scale=$scale, width=$width)")
+                }
+            }
+        }
+    }
+
     @Test
     fun timetablePaintsBehindTheGestureAreaButKeepsCoursesAboveIt() {
         listOf(false, true).forEach { dark ->
@@ -62,10 +120,13 @@ class TwinteAppearanceUiTest {
                         }
                     }
                     assertEquals(844f, onNodeWithTag("timetable-frame").fetchSemanticsNode().boundsInRoot.bottom)
+                    val lastCourseBottom = onNodeWithTag("slot-Friday-6").fetchSemanticsNode().boundsInRoot.bottom
+                    val contentBottom = 844f - maxOf(inset, 12)
                     assertTrue(
-                        onNodeWithTag("slot-Friday-6").fetchSemanticsNode().boundsInRoot.bottom <= 844f - inset - 12f,
+                        lastCourseBottom <= contentBottom,
                         "Courses must stay above the system area ($inset dp)",
                     )
+                    assertTrue(contentBottom - lastCourseBottom <= 4f, "Do not add another margin above the safe area")
                     val pixels = captureToImage().toPixelMap()
                     val footerTop = 844 - maxOf(inset, 12)
                     val footerColor = pixels[60, footerTop]
@@ -192,6 +253,7 @@ private fun TimetablePreview(bottomInset: Dp = 0.dp) {
         uiState = TimetableUiState(selectedYear = 2026),
         currentModule = Module.FallB, currentYear = 2026,
         onRefresh = {}, onSelectModule = {}, onCurrentModule = {}, onOpenCourses = {},
+        onOpenEmptySlot = {},
         contentWindowInsets = WindowInsets(bottom = bottomInset),
     )
 }

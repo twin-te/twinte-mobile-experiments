@@ -1,6 +1,7 @@
 package net.twinte.mobile_experiments
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -250,9 +251,12 @@ private fun DrawerDestination(tab: AppTab, selected: Boolean, onClick: () -> Uni
 }
 
 @Composable
-internal fun ScreenColumn(content: @Composable ColumnScope.() -> Unit) {
+internal fun ScreenColumn(
+    scrollState: ScrollState = rememberScrollState(),
+    content: @Composable ColumnScope.() -> Unit,
+) {
     Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
+        modifier = Modifier.fillMaxSize().verticalScroll(scrollState).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
         content = content,
     )

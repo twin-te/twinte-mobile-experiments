@@ -74,6 +74,12 @@ internal class AppNavigator(
         if (stack.last() != AppRoute.Tags) stack.add(AppRoute.Tags)
     }
 
+    fun openCourseSearch() {
+        selectTab(AppTab.Courses)
+        val stack = stacks.getValue(AppTab.Courses)
+        while (stack.size > 1) stack.removeAt(stack.lastIndex)
+    }
+
     fun goBack() {
         val stack = stacks.getValue(selectedTab)
         if (stack.size > 1) {
