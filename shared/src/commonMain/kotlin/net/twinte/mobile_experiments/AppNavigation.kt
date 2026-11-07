@@ -3,6 +3,8 @@ package net.twinte.mobile_experiments
 import androidx.compose.foundation.ScrollState
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -11,11 +13,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSerializable
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.platform.LocalUriHandler
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import net.twinte.mobile_experiments.feature.course.CourseDeleteDialog
 import net.twinte.mobile_experiments.feature.course.CourseDetailActions
 import net.twinte.mobile_experiments.feature.course.CourseDetailScreen
+import net.twinte.mobile_experiments.feature.course.courseMapUrl
+import net.twinte.mobile_experiments.ui.browser.BrowserPage
+import net.twinte.mobile_experiments.ui.browser.BrowserSheet
+import net.twinte.mobile_experiments.ui.browser.browserPageSaver
 import net.twinte.mobile_experiments.feature.timetable.TimetableCourseSelectionDialog
 import net.twinte.mobile_experiments.feature.timetable.TimetableScreen
 
@@ -39,6 +46,18 @@ internal fun AppNavigation(
     }
     val coursesScroll = rememberSaveable(timetable.selectedYear, saver = ScrollState.Saver) { ScrollState(0) }
     var deletingCourseId by rememberSaveable(timetable.selectedYear) { mutableStateOf<String?>(null) }
+    var browserPage by rememberSaveable(timetable.selectedYear, stateSaver = browserPageSaver) {
+        mutableStateOf<BrowserPage?>(null)
+    }
+    val uriHandler = LocalUriHandler.current
+    var linkOpenFailed by rememberSaveable { mutableStateOf(false) }
+    fun openExternal(uri: String) {
+        try {
+            uriHandler.openUri(uri)
+        } catch (_: IllegalArgumentException) {
+            linkOpenFailed = true
+        }
+    }
     fun openCourseDetail(courseId: String) {
         selectedCourseIds = emptyList()
         navigator.openCourseDetail(courseId)
@@ -70,9 +89,11 @@ internal fun AppNavigation(
         detailActions = { route ->
             timetable.registeredCourses.firstOrNull { it.id == route.courseId }?.let { course ->
                 CourseDetailActions(
-                    courseId = course.id, enabled = !operationsState.isLoading,
+                    course = course, enabled = !operationsState.isLoading,
                     onEdit = { openEditor(CourseEditorTarget.Edit(course.id)) },
                     onDelete = { deletingCourseId = course.id },
+                    onOpenPage = { browserPage = it },
+                    onOpenMap = { openExternal(courseMapUrl(course).toString()) },
                 )
             }
         },
@@ -182,6 +203,15 @@ internal fun AppNavigation(
             onCreate = timetableStateHolder::createCourseManually,
             onUpdate = timetableStateHolder::updateCourse,
             onDismiss = { editorTarget = CourseEditorTarget.Closed },
+        )
+    }
+    browserPage?.let { page -> BrowserSheet(page, ::openExternal, onDismiss = { browserPage = null }) }
+    if (linkOpenFailed) {
+        AlertDialog(
+            onDismissRequest = { linkOpenFailed = false },
+            title = { Text("リンクを開けませんでした") },
+            text = { Text("対応するアプリやブラウザを確認してください。") },
+            confirmButton = { TextButton(onClick = { linkOpenFailed = false }) { Text("OK") } },
         )
     }
 }

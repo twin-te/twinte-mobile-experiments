@@ -31,6 +31,11 @@ import com.composables.icons.lucide.EllipsisVertical
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Pencil
 import com.composables.icons.lucide.Trash2
+import com.composables.icons.lucide.BookOpen
+import com.composables.icons.lucide.ClipboardCheck
+import com.composables.icons.lucide.MapPin
+import com.composables.icons.lucide.ExternalLink
+import net.twinte.mobile_experiments.ui.browser.BrowserPage
 import net.twinte.mobile_experiments.core.domain.RegisteredCourse
 import net.twinte.mobile_experiments.ui.components.TwinteIconButton
 import net.twinte.mobile_experiments.ui.components.twinteRaised
@@ -39,12 +44,14 @@ import net.twinte.mobile_experiments.ui.theme.TwinteTheme
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun CourseDetailActions(
-    courseId: String,
+    course: RegisteredCourse,
     enabled: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onOpenPage: (BrowserPage) -> Unit,
+    onOpenMap: () -> Unit,
 ) {
-    var expanded by remember(courseId) { mutableStateOf(false) }
+    var expanded by remember(course.id) { mutableStateOf(false) }
     val colors = TwinteTheme.colors
     Column {
         TwinteIconButton("授業の操作", Lucide.EllipsisVertical, { expanded = !expanded })
@@ -52,7 +59,7 @@ internal fun CourseDetailActions(
             val shape = RoundedCornerShape(8.dp)
             Column(
                 Modifier.widthIn(min = 160.dp).twinteRaised(shape)
-                    .background(colors.surface, shape).padding(vertical = 8.dp),
+                    .background(colors.surface, shape).padding(vertical = 8.dp).verticalScroll(rememberScrollState()),
             ) {
                 DropdownMenuItem(
                     text = { Text("編集する", color = if (enabled) colors.text else colors.muted.copy(alpha = 0.6f)) },
@@ -61,6 +68,35 @@ internal fun CourseDetailActions(
                     onClick = {
                         expanded = false
                         onEdit()
+                    },
+                )
+                syllabusUrl(course)?.let { url ->
+                    DropdownMenuItem(
+                        text = { Text("シラバス", color = colors.text) },
+                        leadingIcon = { Icon(Lucide.BookOpen, null, tint = colors.muted) },
+                        trailingIcon = { Icon(Lucide.ExternalLink, null, tint = colors.muted) },
+                        onClick = {
+                            expanded = false
+                            onOpenPage(BrowserPage("シラバス", url))
+                        },
+                    )
+                }
+                DropdownMenuItem(
+                    text = { Text("出席(respon)", color = colors.text) },
+                    leadingIcon = { Icon(Lucide.ClipboardCheck, null, tint = colors.muted) },
+                    trailingIcon = { Icon(Lucide.ExternalLink, null, tint = colors.muted) },
+                    onClick = {
+                        expanded = false
+                        onOpenPage(BrowserPage("出席(respon)", responUrl))
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text("地図", color = colors.text) },
+                    leadingIcon = { Icon(Lucide.MapPin, null, tint = colors.muted) },
+                    trailingIcon = { Icon(Lucide.ExternalLink, null, tint = colors.muted) },
+                    onClick = {
+                        expanded = false
+                        onOpenMap()
                     },
                 )
                 DropdownMenuItem(
