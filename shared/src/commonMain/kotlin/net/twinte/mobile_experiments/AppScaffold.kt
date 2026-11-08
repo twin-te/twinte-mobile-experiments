@@ -41,6 +41,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -165,6 +166,7 @@ internal fun AppScaffold(
                 entry<AppRoute.Courses> { entryContent(it) }
                 entry<AppRoute.Account> { entryContent(it) }
                 entry<AppRoute.Tags> { entryContent(it) }
+                entry<AppRoute.RegisteredCourses> { entryContent(it) }
                 entry<AppRoute.CourseDetail> { entryContent(it) }
                 entry<AppRoute.CourseEditor> { entryContent(it) }
             }),
@@ -195,9 +197,13 @@ private fun AppScreenFrame(
     content: @Composable () -> Unit,
 ) {
     val colors = TwinteTheme.colors
-    val isNested = route is AppRoute.CourseDetail || route == AppRoute.Tags
+    val isNested = route is AppRoute.CourseDetail || route == AppRoute.Tags ||
+        route == AppRoute.Courses || route == AppRoute.RegisteredCourses
     TwintePageLayout(
         modifier = Modifier.testTag("screen-$route"),
+        leadingWidth = if (route == AppRoute.Courses) 48.dp else 76.dp,
+        trailingWidth = if (route == AppRoute.Courses) 48.dp else 88.dp,
+        background = if (route == AppRoute.Courses) SolidColor(colors.background) else null,
         title = {
             if (route == AppRoute.Timetable) {
                 Image(
@@ -207,6 +213,8 @@ private fun AppScreenFrame(
             } else Text(
                 when (route) {
                     AppRoute.Tags -> "タグ"
+                    AppRoute.Courses -> "授業の検索"
+                    AppRoute.RegisteredCourses -> "登録済みの授業"
                     is AppRoute.CourseDetail -> "授業詳細"
                     else -> AppTab.entries.first { it.root == route }.title
                 },

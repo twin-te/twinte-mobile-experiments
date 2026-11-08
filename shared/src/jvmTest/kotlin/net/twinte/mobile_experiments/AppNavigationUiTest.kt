@@ -37,18 +37,19 @@ class AppNavigationUiTest {
     fun tabsAndNestedBackNavigationRetainSearchInput() = runComposeUiTest {
         setContent { TwinteTheme { TestAuthenticatedApp() } }
         navigate(AppTab.Courses)
-        onNodeWithText("Name or keyword").performTextInput("Seminar")
+        onNodeWithTag("input-キーワード").performTextInput("Seminar")
         navigate(AppTab.Account)
         navigate(AppTab.Courses)
-        onNodeWithText("Name or keyword").assertTextContains("Seminar")
+        onNodeWithTag("input-キーワード").assertTextContains("Seminar")
 
-        onNodeWithText("Manage tags").performScrollTo().performClick()
+        onNodeWithContentDescription("授業の追加メニュー").performClick()
+        onNodeWithText("タグを管理").performClick()
         onNodeWithText("New tag").performTextInput("Important")
         navigate(AppTab.Today)
         navigate(AppTab.Courses)
         onNodeWithText("New tag").assertTextContains("Important")
         onNodeWithContentDescription("Back").performClick()
-        onNodeWithText("Name or keyword").assertTextContains("Seminar")
+        onNodeWithTag("input-キーワード").assertTextContains("Seminar")
     }
 
     @Test
@@ -56,8 +57,9 @@ class AppNavigationUiTest {
         val restoration = SaveableComposition()
         setContent { restoration.Content { TwinteTheme { TestAuthenticatedApp() } } }
         navigate(AppTab.Courses)
-        onNodeWithText("Name or keyword").performTextInput("Seminar")
-        onNodeWithText("Manage tags").performScrollTo().performClick()
+        onNodeWithTag("input-キーワード").performTextInput("Seminar")
+        onNodeWithContentDescription("授業の追加メニュー").performClick()
+        onNodeWithText("タグを管理").performClick()
         onNodeWithText("New tag").performTextInput("Important")
 
         runOnIdle { restoration.saveAndDispose() }
@@ -66,7 +68,7 @@ class AppNavigationUiTest {
         onNodeWithTag("screen-Tags").assertIsDisplayed()
         onNodeWithText("New tag").assertTextContains("Important")
         onNodeWithContentDescription("Back").performClick()
-        onNodeWithText("Name or keyword").assertTextContains("Seminar")
+        onNodeWithTag("input-キーワード").assertTextContains("Seminar")
     }
 
     @Test
@@ -74,7 +76,8 @@ class AppNavigationUiTest {
         val restoration = SaveableComposition()
         setContent { restoration.Content { TwinteTheme { TestAuthenticatedApp() } } }
         navigate(AppTab.Courses)
-        onNodeWithText("Create course").performScrollTo().performClick()
+        onNodeWithContentDescription("授業の追加メニュー").performClick()
+        onNodeWithText("手動で授業を作成").performClick()
         onNodeWithTag("input-授業名").performTextInput("New seminar")
         onNodeWithTag("input-単位数").performTextInput("1.5")
 
@@ -99,7 +102,7 @@ class AppNavigationUiTest {
             }
         }
         navigate(AppTab.Courses)
-        onNodeWithText("Name or keyword").performTextInput("Private query")
+        onNodeWithTag("input-キーワード").performTextInput("Private query")
         runOnIdle { auth = AuthUiState(AuthState.LoggedOut, "Signed out") }
         onNodeWithText("Google").assertIsDisplayed()
         onNodeWithTag("screen-Courses").assertDoesNotExist()
@@ -121,7 +124,7 @@ class AppNavigationUiTest {
             }
         }
         navigate(AppTab.Courses)
-        onNodeWithText("Name or keyword").performTextInput("Private query")
+        onNodeWithTag("input-キーワード").performTextInput("Private query")
         runOnIdle { auth = testSignedIn("other-user") }
 
         onNodeWithTag("screen-Timetable").assertIsDisplayed()
@@ -141,7 +144,7 @@ class AppNavigationUiTest {
             }
         }
         navigate(AppTab.Courses)
-        onNodeWithText("Name or keyword").performTextInput("Private query")
+        onNodeWithTag("input-キーワード").performTextInput("Private query")
         runOnIdle { restoration.saveAndDispose() }
         runOnIdle {
             auth = testSignedIn("other-user")
@@ -161,21 +164,21 @@ class AppNavigationUiTest {
             }
         }
         navigate(AppTab.Courses)
-        onNodeWithText("Name or keyword").performTextInput("Seminar")
+        onNodeWithTag("input-キーワード").performTextInput("Seminar")
         runOnIdle { auth = testSignedIn().copy(message = "Checked session") }
         onNodeWithTag("screen-Courses").assertIsDisplayed()
-        onNodeWithText("Name or keyword").assertTextContains("Seminar")
+        onNodeWithTag("input-キーワード").assertTextContains("Seminar")
     }
 
     @Test
     fun changingYearWhileCoursesAreHiddenResetsTheirSavedInputs() = runComposeUiTest {
         setContent { TwinteTheme { TestAuthenticatedApp() } }
         navigate(AppTab.Courses)
-        onNodeWithText("Name or keyword").performTextInput("Previous year query")
+        onNodeWithTag("input-キーワード").performTextInput("Previous year query")
         navigate(AppTab.Timetable)
         previousYear()
         navigate(AppTab.Courses)
-        onNodeWithTag("selected-year").assertTextContains("2025年度")
+        onNodeWithTag("search-year").assertTextContains("2025年度")
         onNodeWithText("Previous year query").assertDoesNotExist()
     }
 
@@ -188,12 +191,12 @@ class AppNavigationUiTest {
         })
         setContent { TwinteTheme { TestAuthenticatedApp(service = service) } }
         navigate(AppTab.Courses)
-        onNodeWithText("Search", substring = false).performClick()
-        onNodeWithText("Searching courses...").assertIsDisplayed()
+        onNodeWithContentDescription("検索").performClick()
+        onNodeWithTag("search-loading").assertIsDisplayed()
         navigate(AppTab.Today)
         runOnIdle { pending.complete(Unit) }
         navigate(AppTab.Courses)
-        onNodeWithText("No courses found").assertIsDisplayed()
+        onNodeWithText("一致する授業がありません。").assertIsDisplayed()
     }
 
     @Test
@@ -216,7 +219,8 @@ class AppNavigationUiTest {
             }
         }
         navigate(AppTab.Courses)
-        onNodeWithText("Create course").performScrollTo().performClick()
+        onNodeWithContentDescription("授業の追加メニュー").performClick()
+        onNodeWithText("手動で授業を作成").performClick()
         onNodeWithTag("input-授業名").performTextInput("New seminar")
         onNodeWithTag("input-単位数").performTextInput("1.5")
         onNodeWithTag("save-course").performClick()
@@ -237,13 +241,13 @@ class AppNavigationUiTest {
         onNodeWithContentDescription("学期を選択").performClick()
         onNodeWithText("秋A").performClick()
         navigate(AppTab.Courses)
-        onNodeWithText("Name or keyword").performTextInput("2025 query")
+        onNodeWithTag("input-キーワード").performTextInput("2025 query")
         runOnIdle { restoration.saveAndDispose() }
         runOnIdle { restoration.restore() }
 
         onNodeWithTag("screen-Courses").assertIsDisplayed()
-        onNodeWithTag("selected-year").assertTextContains("2025年度")
-        onNodeWithText("Name or keyword").assertTextContains("2025 query")
+        onNodeWithTag("search-year").assertTextContains("2025年度")
+        onNodeWithTag("input-キーワード").assertTextContains("2025 query")
         navigate(AppTab.Timetable)
         onNodeWithText("秋A").assertIsDisplayed()
         onNodeWithContentDescription("メニュー").performClick()

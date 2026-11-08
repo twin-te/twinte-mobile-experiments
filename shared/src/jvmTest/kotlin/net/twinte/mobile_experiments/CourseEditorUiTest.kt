@@ -178,7 +178,8 @@ class CourseEditorUiTest {
         val service = FakeTimetableService()
         setContent { TwinteTheme { TestAuthenticatedApp(service = service) } }
         onNodeWithTag("slot-Monday-2").performClick()
-        onNodeWithText("Create course").performScrollTo().performClick()
+        onNodeWithContentDescription("授業の追加メニュー").performClick()
+        onNodeWithText("手動で授業を作成").performClick()
         onNodeWithTag("save-course").assertIsNotEnabled()
         onNodeWithTag("input-授業名").performTextInput("自主ゼミ")
         onNodeWithTag("input-単位数").performScrollTo().performTextInput("1.2")

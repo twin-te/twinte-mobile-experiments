@@ -53,13 +53,25 @@ class AppNavigatorTest {
     fun everyRouteRoundTripsWithoutPlatformReflection() {
         val serializer = PolymorphicSerializer(NavKey::class)
         val routes = AppTab.entries.map { it.root } + listOf(
-            AppRoute.Tags, AppRoute.CourseDetail("course-id"),
+            AppRoute.Tags, AppRoute.RegisteredCourses, AppRoute.CourseDetail("course-id"),
             AppRoute.CourseEditor(2026), AppRoute.CourseEditor(2026, "course-id"),
         )
         routes.forEach { route ->
             val saved = encodeToSavedState(serializer, route, appRoutesConfiguration)
             assertEquals(route, decodeFromSavedState(serializer, saved, appRoutesConfiguration))
         }
+    }
+
+    @Test
+    fun registrationReturnsToTheGridEvenIfAHiddenTimetableDetailIsRetained() {
+        val navigator = navigator()
+        navigator.openCourseDetail("previous-course")
+        navigator.selectTab(AppTab.Courses)
+        navigator.openRegisteredCourses()
+        navigator.returnToTimetable()
+        assertEquals(AppRoute.Timetable, navigator.currentRoute)
+        assertEquals(listOf(AppRoute.Timetable), navigator.stacks.getValue(AppTab.Timetable).toList())
+        assertEquals(listOf(AppRoute.Courses), navigator.stacks.getValue(AppTab.Courses).toList())
     }
 
     @Test

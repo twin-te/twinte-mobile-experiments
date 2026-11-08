@@ -49,6 +49,10 @@ internal data class TimetableUiState(
 
 internal data class CourseOperationsUiState(
     val searchResults: List<Course> = emptyList(),
+    val hasSearched: Boolean = false,
+    val isSearching: Boolean = false,
+    val searchFailed: Boolean = false,
+    val canLoadMore: Boolean = false,
     val message: String? = null,
     val isLoading: Boolean = false,
     val operationFailed: Boolean = false,
@@ -111,6 +115,9 @@ internal class TimetableStateHolder(
     private var timetableRefresh: Job? = null
     private var dailyRefresh: Job? = null
     private var courseSearch: Job? = null
+    private var lastSearchInput: SearchCoursesInput? = null
+    private var failedSearch: Pair<SearchCoursesInput, Boolean>? = null
+    private var nextSearchOffset = 0
     private var courseOperation: Job? = null
     private var timetableSnapshot = TimetableSnapshot()
     private var timetableCacheObserved = false
@@ -129,6 +136,9 @@ internal class TimetableStateHolder(
             timetableRefresh?.cancel()
             courseSearch?.cancel()
             courseOperation?.cancel()
+            lastSearchInput = null
+            failedSearch = null
+            nextSearchOffset = 0
             timetableSnapshot = TimetableSnapshot()
             timetableCacheObserved = false
             timetableSyncRequested = false
@@ -205,38 +215,65 @@ internal class TimetableStateHolder(
         }
     }
 
-    fun searchCourses(query: String) {
+    fun searchCourses(input: SearchCoursesInput) {
+        if (input.year != _timetableUiState.value.selectedYear) return
+        fetchCourses(input.copy(offset = 0), append = false)
+    }
+
+    fun loadMoreCourses() {
+        val input = lastSearchInput ?: return
+        if (!_courseOperationsUiState.value.canLoadMore) return
+        fetchCourses(input.copy(offset = nextSearchOffset), append = true)
+    }
+
+    fun retryCourseSearch() {
+        val (input, append) = failedSearch ?: return
+        fetchCourses(input, append)
+    }
+
+    private fun fetchCourses(input: SearchCoursesInput, append: Boolean) {
         if (courseSearch?.isActive == true || courseOperation?.isActive == true) return
-        val year = _timetableUiState.value.selectedYear
-        _courseOperationsUiState.update { it.copy(message = "Searching courses...", isLoading = true) }
+        if (!append) lastSearchInput = input
+        failedSearch = null
+        _courseOperationsUiState.update {
+            it.copy(message = "Searching courses...", isLoading = true, isSearching = true, searchFailed = false,
+                canLoadMore = append && it.canLoadMore)
+        }
         courseSearch = scope.launch {
             try {
-                val keywords = query.trim()
-                    .split(Regex("\\s+"))
-                    .filter(String::isNotBlank)
-                val results = timetableService.searchCourses(
-                    SearchCoursesInput(year = year, keywords = keywords),
-                )
-                _courseOperationsUiState.value = CourseOperationsUiState(
-                    searchResults = results,
-                    message = if (results.isEmpty()) "No courses found" else "${results.size} courses found",
-                )
+                val results = timetableService.searchCourses(input)
+                currentCoroutineContext().ensureActive()
+                nextSearchOffset = input.offset + results.size
+                _courseOperationsUiState.update {
+                    val combined = if (append) (it.searchResults + results).distinctBy(Course::id) else results
+                    it.copy(searchResults = combined, hasSearched = true, isLoading = false, isSearching = false,
+                        canLoadMore = results.size == input.limit, message = "${combined.size} courses found")
+                }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
+                currentCoroutineContext().ensureActive()
+                failedSearch = input to append
                 onFailure(error)
                 _courseOperationsUiState.update {
-                    it.copy(message = "Search failed", isLoading = false)
+                    it.copy(message = "Search failed", isLoading = false, isSearching = false, searchFailed = true)
                 }
             }
         }
     }
 
-    fun registerCourse(course: Course) {
+    fun registerCourses(year: Int, codes: List<String>, onSuccess: () -> Unit = {}) {
         val accountId = accountId ?: return
-        launchCourseOperation("Registering ${course.name}...") {
-            timetableService.createCoursesByCodes(accountId, course.year, listOf(course.code))
-            completeCourseMutation(accountId, "Registered ${course.name}")
+        if (codes.isEmpty() || year != _timetableUiState.value.selectedYear) return
+        launchCourseOperation("Registering courses...") {
+            require(codes.all(String::isNotBlank))
+            val uniqueCodes = codes.distinct()
+            val registered = timetableSnapshot.courses.filter { it.year == year }.mapNotNull(RegisteredCourse::code)
+            require(uniqueCodes.none { it in registered }) { "Course is already registered" }
+            timetableService.createCoursesByCodes(accountId, year, uniqueCodes)
+            currentCoroutineContext().ensureActive()
+            onSuccess()
+            completeCourseMutation(accountId, "Registered ${uniqueCodes.size} courses")
         }
     }
 
@@ -505,9 +542,13 @@ internal class TimetableStateHolder(
     private fun selectYear(year: Int) {
         val current = _timetableUiState.value
         courseSearch?.cancel()
+        lastSearchInput = null
+        failedSearch = null
+        nextSearchOffset = 0
         _courseOperationsUiState.update {
             if (courseOperation?.isActive == true) {
-                it.copy(searchResults = emptyList())
+                it.copy(searchResults = emptyList(), hasSearched = false, isSearching = false,
+                    searchFailed = false, canLoadMore = false)
             } else {
                 CourseOperationsUiState()
             }

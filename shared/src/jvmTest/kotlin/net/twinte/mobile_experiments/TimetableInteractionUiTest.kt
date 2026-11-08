@@ -42,7 +42,7 @@ class TimetableInteractionUiTest {
         setContent { TwinteTheme { TestAuthenticatedApp(service = service) } }
         onNodeWithContentDescription("メニュー").performClick()
         onNodeWithTag("destination-Courses").performClick()
-        onNodeWithText("Search", substring = false).performClick()
+        onNodeWithContentDescription("検索").performClick()
         onNodeWithContentDescription("メニュー").performClick()
         onNodeWithTag("destination-Timetable").performClick()
         onNodeWithTag("slot-Monday-2").performClick()
@@ -68,16 +68,17 @@ class TimetableInteractionUiTest {
         setContent { TwinteTheme { TestAuthenticatedApp(withCourse = true) } }
         onNodeWithContentDescription("メニュー").performClick()
         onNodeWithTag("destination-Courses").performClick()
-        onNodeWithText("Name or keyword").performTextInput("Retained query")
-        onNodeWithText("Manage tags").performScrollTo().performClick()
+        onNodeWithTag("input-キーワード").performTextInput("Retained query")
+        onNodeWithContentDescription("授業の追加メニュー").performClick()
+        onNodeWithText("タグを管理").performClick()
         onNodeWithText("New tag").performTextInput("Tag draft")
         onNodeWithContentDescription("メニュー").performClick()
         onNodeWithTag("destination-Timetable").performClick()
 
         onNodeWithTag("slot-Monday-1").performClick()
         onNodeWithTag("screen-Courses").assertIsDisplayed()
-        onNodeWithText("Name or keyword").assertIsDisplayed().assertTextContains("Retained query")
-        onNodeWithText("Search", substring = false).assertIsDisplayed()
+        onNodeWithTag("input-キーワード").assertIsDisplayed().assertTextContains("Retained query")
+        onNodeWithContentDescription("検索").assertIsDisplayed()
         onNodeWithText("New tag").assertDoesNotExist()
     }
 
@@ -88,7 +89,11 @@ class TimetableInteractionUiTest {
         setContent { restoration.Content { TwinteTheme { TestAuthenticatedApp(service = service) } } }
         onNodeWithContentDescription("メニュー").performClick()
         onNodeWithTag("destination-Courses").performClick()
-        onNodeWithText("Edit", substring = false).performScrollTo().performClick()
+        onNodeWithContentDescription("授業の追加メニュー").performClick()
+        onNodeWithText("登録済みの授業").performClick()
+        onNodeWithText("情報メディア実験A").performClick()
+        onNodeWithContentDescription("授業の操作").performClick()
+        onNodeWithText("編集する").performClick()
         onNodeWithTag("input-授業名").performTextClearance()
         onNodeWithTag("input-授業名").performTextInput("Unsaved draft")
         runOnIdle { restoration.saveAndDispose() }
@@ -96,6 +101,8 @@ class TimetableInteractionUiTest {
         onNodeWithTag("input-授業名").assertTextContains("Unsaved draft")
         onNodeWithContentDescription("Back").performClick()
         onNodeWithText("破棄する").performClick()
+        onNodeWithContentDescription("Back").performClick()
+        onNodeWithContentDescription("Back").performClick()
         onNodeWithTag("screen-Courses").assertIsDisplayed()
 
         onNodeWithContentDescription("メニュー").performClick()

@@ -25,6 +25,7 @@ internal sealed interface AppRoute : NavKey {
     @Serializable data object Courses : AppRoute
     @Serializable data object Account : AppRoute
     @Serializable data object Tags : AppRoute
+    @Serializable data object RegisteredCourses : AppRoute
     @Serializable data class CourseDetail(val courseId: String) : AppRoute
     @Serializable data class CourseEditor(val year: Int, val courseId: String? = null) : AppRoute
 }
@@ -45,6 +46,7 @@ internal val appRoutesConfiguration = SavedStateConfiguration {
             subclass(AppRoute.Courses::class, AppRoute.Courses.serializer())
             subclass(AppRoute.Account::class, AppRoute.Account.serializer())
             subclass(AppRoute.Tags::class, AppRoute.Tags.serializer())
+            subclass(AppRoute.RegisteredCourses::class, AppRoute.RegisteredCourses.serializer())
             subclass(AppRoute.CourseDetail::class, AppRoute.CourseDetail.serializer())
             subclass(AppRoute.CourseEditor::class, AppRoute.CourseEditor.serializer())
         }
@@ -82,6 +84,19 @@ internal class AppNavigator(
         selectTab(AppTab.Courses)
         val stack = stacks.getValue(AppTab.Courses)
         while (stack.size > 1) stack.removeAt(stack.lastIndex)
+    }
+
+    fun openRegisteredCourses() {
+        val stack = stacks.getValue(selectedTab)
+        if (stack.last() != AppRoute.RegisteredCourses) stack.add(AppRoute.RegisteredCourses)
+    }
+
+    fun returnToTimetable() {
+        listOf(AppTab.Courses, AppTab.Timetable).forEach { tab ->
+            val stack = stacks.getValue(tab)
+            while (stack.size > 1) stack.removeAt(stack.lastIndex)
+        }
+        selectTab(AppTab.Timetable)
     }
 
     fun openCourseDetail(courseId: String) {
