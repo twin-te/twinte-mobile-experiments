@@ -58,7 +58,7 @@ class TimetableInteractionUiTest {
         runOnIdle { pending.complete(Unit) }
         onNodeWithContentDescription("授業の操作").performClick()
         onNodeWithText("編集する").assertIsEnabled().performClick()
-        onNodeWithText("Cancel").assertIsEnabled().performClick()
+        onNodeWithContentDescription("Back").assertIsEnabled().performClick()
         onNodeWithContentDescription("Back").performClick()
         onNodeWithTag("screen-Timetable").assertIsDisplayed()
     }
@@ -89,12 +89,13 @@ class TimetableInteractionUiTest {
         onNodeWithContentDescription("メニュー").performClick()
         onNodeWithTag("destination-Courses").performClick()
         onNodeWithText("Edit", substring = false).performScrollTo().performClick()
-        onNodeWithText("Name", substring = false).performTextClearance()
-        onNodeWithText("Name", substring = false).performTextInput("Unsaved draft")
+        onNodeWithTag("editor-授業名").performTextClearance()
+        onNodeWithTag("editor-授業名").performTextInput("Unsaved draft")
         runOnIdle { restoration.saveAndDispose() }
         runOnIdle { restoration.restore() }
-        onNodeWithText("Name", substring = false).assertTextContains("Unsaved draft")
-        onNodeWithText("Cancel").performClick()
+        onNodeWithTag("editor-授業名").assertTextContains("Unsaved draft")
+        onNodeWithContentDescription("Back").performClick()
+        onNodeWithText("破棄する").performClick()
         onNodeWithTag("screen-Courses").assertIsDisplayed()
 
         onNodeWithContentDescription("メニュー").performClick()
@@ -102,8 +103,8 @@ class TimetableInteractionUiTest {
         onNodeWithTag("slot-Monday-2").performClick()
         onNodeWithContentDescription("授業の操作").performClick()
         onNodeWithText("編集する").performClick()
-        onNodeWithText("Name", substring = false).assertTextContains("情報メディア実験A")
-        onNodeWithText("Cancel").performClick()
+        onNodeWithTag("editor-授業名").assertTextContains("情報メディア実験A")
+        onNodeWithContentDescription("Back").performClick()
     }
 
     @Test

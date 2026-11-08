@@ -99,6 +99,7 @@ internal fun AppScaffold(
     ModalNavigationDrawer(
         modifier = Modifier.fillMaxSize().background(colors.surface),
         drawerState = drawer,
+        gesturesEnabled = navigator.currentRoute !is AppRoute.CourseEditor,
         drawerContent = {
             ModalDrawerSheet(
                 modifier = Modifier.width(288.dp),
@@ -145,7 +146,10 @@ internal fun AppScaffold(
         },
     ) {
         val entryContent: @Composable (AppRoute) -> Unit = { route ->
-            AppScreenFrame(
+            if (route is AppRoute.CourseEditor) {
+                // Editors own their header and back guard, within the same animated NavEntry.
+                content(route)
+            } else AppScreenFrame(
                 route = route, authUiState = authUiState,
                 calendarDate = calendarDate, calendarLabel = calendarLabel,
                 onBack = navigator::goBack, onOpenMenu = { scope.launch { drawer.open() } },
@@ -162,6 +166,7 @@ internal fun AppScaffold(
                 entry<AppRoute.Account> { entryContent(it) }
                 entry<AppRoute.Tags> { entryContent(it) }
                 entry<AppRoute.CourseDetail> { entryContent(it) }
+                entry<AppRoute.CourseEditor> { entryContent(it) }
             }),
             onBack = navigator::goBack,
             transitionSpec = {

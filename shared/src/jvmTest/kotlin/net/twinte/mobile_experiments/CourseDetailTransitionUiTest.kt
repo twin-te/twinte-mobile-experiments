@@ -22,6 +22,35 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalTestApi::class)
 class CourseDetailTransitionUiTest {
     @Test
+    fun returningFromEditorMovesItsHeaderAndFormTogether() = runSkikoComposeUiTest(
+        size = Size(390f, 844f), density = Density(1f),
+    ) {
+        val service = FakeTimetableService(initialSnapshot = TimetableSnapshot(courses = testTimetableCourses.take(1)))
+        setContent { TwinteTheme { TestAuthenticatedApp(service = service) } }
+        onNodeWithTag("slot-Monday-2").performClick()
+        onNodeWithContentDescription("授業の操作").performClick()
+        onNodeWithText("編集する").performClick()
+        val header = onNodeWithText("授業情報の編集")
+        val form = onNodeWithTag("course-editor")
+        val headerBefore = header.getUnclippedBoundsInRoot()
+        val formBefore = form.getUnclippedBoundsInRoot()
+        mainClock.autoAdvance = false
+        onNodeWithContentDescription("Back").performClick()
+        mainClock.advanceTimeByFrame()
+        mainClock.advanceTimeBy(64)
+        val headerDuring = header.getUnclippedBoundsInRoot()
+        val formDuring = form.getUnclippedBoundsInRoot()
+        val offset = formDuring.left.value - formBefore.left.value
+        assertTrue(offset > 1f)
+        assertEquals(offset, headerDuring.left.value - headerBefore.left.value, 1f)
+        assertEquals((formBefore.right - formBefore.left).value, (formDuring.right - formDuring.left).value, 1f)
+        mainClock.autoAdvance = true
+        waitForIdle()
+        onNodeWithTag("course-detail").assertIsDisplayed()
+        onNodeWithTag("course-editor").assertDoesNotExist()
+    }
+
+    @Test
     fun returningHomeMovesTheHeaderAndBodyTogetherWithoutScaling() = runSkikoComposeUiTest(
         size = Size(390f, 844f), density = Density(1f),
     ) {

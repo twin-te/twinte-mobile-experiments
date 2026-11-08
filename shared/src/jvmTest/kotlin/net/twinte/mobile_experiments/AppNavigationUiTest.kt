@@ -75,15 +75,16 @@ class AppNavigationUiTest {
         setContent { restoration.Content { TwinteTheme { TestAuthenticatedApp() } } }
         navigate(AppTab.Courses)
         onNodeWithText("Create course").performScrollTo().performClick()
-        onNodeWithText("Name", substring = false).performTextInput("New seminar")
-        onNodeWithText("Credit (e.g. 1.0)").performTextInput("1.5")
+        onNodeWithTag("editor-授業名").performTextInput("New seminar")
+        onNodeWithTag("editor-単位数").performTextInput("1.5")
 
         runOnIdle { restoration.saveAndDispose() }
         runOnIdle { restoration.restore() }
 
-        onNodeWithText("Name", substring = false).assertTextContains("New seminar")
-        onNodeWithText("Credit (e.g. 1.0)").assertTextContains("1.5")
-        onNodeWithText("Cancel").performClick()
+        onNodeWithTag("editor-授業名").assertTextContains("New seminar")
+        onNodeWithTag("editor-単位数").assertTextContains("1.5")
+        onNodeWithContentDescription("Back").performClick()
+        onNodeWithText("破棄する").performClick()
         onNodeWithTag("screen-Courses").assertIsDisplayed()
     }
 
@@ -216,9 +217,9 @@ class AppNavigationUiTest {
         }
         navigate(AppTab.Courses)
         onNodeWithText("Create course").performScrollTo().performClick()
-        onNodeWithText("Name", substring = false).performTextInput("New seminar")
-        onNodeWithText("Credit (e.g. 1.0)").performTextInput("1.5")
-        onNodeWithText("Save").performClick()
+        onNodeWithTag("editor-授業名").performTextInput("New seminar")
+        onNodeWithTag("editor-単位数").performTextInput("1.5")
+        onNodeWithTag("save-course").performClick()
         runOnIdle {
             assertEquals(1, service.createdManualInputs.size)
             auth = AuthUiState(AuthState.LoggedOut, "Session expired")

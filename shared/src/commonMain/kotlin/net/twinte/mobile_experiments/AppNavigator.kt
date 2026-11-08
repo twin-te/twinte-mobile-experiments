@@ -26,6 +26,7 @@ internal sealed interface AppRoute : NavKey {
     @Serializable data object Account : AppRoute
     @Serializable data object Tags : AppRoute
     @Serializable data class CourseDetail(val courseId: String) : AppRoute
+    @Serializable data class CourseEditor(val year: Int, val courseId: String? = null) : AppRoute
 }
 
 internal enum class AppTab(val root: AppRoute, val title: String) {
@@ -45,6 +46,7 @@ internal val appRoutesConfiguration = SavedStateConfiguration {
             subclass(AppRoute.Account::class, AppRoute.Account.serializer())
             subclass(AppRoute.Tags::class, AppRoute.Tags.serializer())
             subclass(AppRoute.CourseDetail::class, AppRoute.CourseDetail.serializer())
+            subclass(AppRoute.CourseEditor::class, AppRoute.CourseEditor.serializer())
         }
     }
 }
@@ -88,9 +90,21 @@ internal class AppNavigator(
         if (stack.last() != route) stack.add(route)
     }
 
-    fun dismissCourseDetails(courseId: String? = null) {
+    fun openCourseEditor(year: Int, courseId: String? = null) {
+        val stack = stacks.getValue(selectedTab)
+        val route = AppRoute.CourseEditor(year, courseId)
+        if (stack.last() != route) stack.add(route)
+    }
+
+    fun dismissCourseScreens(courseId: String? = null) {
         stacks.values.forEach { stack ->
-            stack.removeAll { it is AppRoute.CourseDetail && (courseId == null || it.courseId == courseId) }
+            stack.removeAll {
+                when (it) {
+                    is AppRoute.CourseDetail -> courseId == null || it.courseId == courseId
+                    is AppRoute.CourseEditor -> courseId == null || it.courseId == courseId
+                    else -> false
+                }
+            }
         }
     }
 

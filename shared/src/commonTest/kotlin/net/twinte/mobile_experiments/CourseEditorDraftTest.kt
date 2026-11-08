@@ -19,7 +19,7 @@ class CourseEditorDraftTest {
         val draft = CourseEditorDraft(
             year = 2026,
             name = " Seminar ",
-            instructors = " Teacher ",
+            instructors = listOf(" Teacher "),
             credit = "1.5",
             methods = setOf(CourseMethod.FaceToFace),
             schedules = listOf(monday),
@@ -73,5 +73,49 @@ class CourseEditorDraftTest {
         assertFalse(draft.copy(schedules = listOf(monday.copy(module = Module.WinterVacation))).isValid)
         assertFalse(draft.copy(schedules = listOf(monday.copy(day = Day.Intensive))).isValid)
         assertTrue(draft.copy(schedules = listOf(monday.copy(day = Day.Intensive, period = 0))).isValid)
+    }
+
+    @Test
+    fun replacingASchedulePreservesOtherSlotsAndReportsDuplicateSlots() {
+        val second = monday.copy(module = Module.FallA, locations = "1E101")
+        val draft = CourseEditorDraft(2026, name = "Seminar", credit = "1.0", schedules = listOf(monday, second))
+        val changed = draft.replaceSchedule(1, second.copy(day = Day.Intensive, period = 0))
+        assertEquals(monday, changed.schedules.first())
+        assertEquals("1E101", changed.schedules.last().locations)
+        assertTrue(changed.isValid)
+        assertFalse(changed.hasDuplicateSchedules)
+        assertTrue(draft.replaceSchedule(1, monday.copy(locations = "elsewhere")).hasDuplicateSchedules)
+    }
+
+    @Test
+    fun parsesTeachersAndRoomAssignmentsUsingTheWebConvertersConvention() {
+        val schedules = listOf(monday.copy(locations = "3A204, 1E101"), monday.copy(module = Module.FallA, locations = "3A204"))
+        val course = RegisteredCourse(
+            id = "course", year = 2026, name = "Seminar", credit = "1.0",
+            instructors = "Teacher A、Teacher B, Teacher A", schedules = schedules, methods = emptyList(),
+        )
+        val draft = CourseEditorDraft.fromCourse(course)
+        assertEquals(listOf("Teacher A", "Teacher B"), draft.instructors)
+        assertEquals(listOf(CourseEditorRoom("3A204", setOf(0, 1)), CourseEditorRoom("1E101", setOf(0))), draft.rooms)
+        val input = draft.toUpdateInput(course.id)
+        assertEquals("Teacher A,Teacher B", input.instructors)
+        assertEquals(listOf("3A204,1E101", "3A204"), input.schedules!!.map { it.locations })
+    }
+
+    @Test
+    fun deletingAScheduleShiftsRoomAssignmentsWithoutAssigningTheWrongSlot() {
+        val draft = CourseEditorDraft(
+            year = 2026, name = "Seminar", credit = "1.0",
+            schedules = listOf(monday, monday.copy(module = Module.FallA)),
+            rooms = listOf(CourseEditorRoom("Room A", setOf(0, 1)), CourseEditorRoom("Room B", setOf(1))),
+        )
+        val changed = draft.removeSchedule(0)
+        assertEquals(listOf(setOf(0), setOf(0)), changed.rooms.map { it.scheduleIndices })
+        assertEquals("Room A,Room B", changed.toCreateInput().schedules.single().locations)
+        assertFalse(draft.copy(instructors = listOf("")).isValid)
+        assertFalse(draft.copy(instructors = listOf("Teacher", " Teacher ")).isValid)
+        assertFalse(draft.copy(rooms = listOf(CourseEditorRoom("", setOf(0)))).isValid)
+        assertFalse(draft.copy(rooms = listOf(CourseEditorRoom("Room", emptySet()))).isValid)
+        assertFalse(draft.copy(rooms = listOf(CourseEditorRoom("Room", setOf(2)))).isValid)
     }
 }

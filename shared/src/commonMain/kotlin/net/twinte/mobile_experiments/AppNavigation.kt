@@ -15,10 +15,10 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.platform.LocalUriHandler
 import kotlinx.coroutines.launch
-import kotlinx.serialization.Serializable
 import net.twinte.mobile_experiments.feature.course.CourseDeleteDialog
 import net.twinte.mobile_experiments.feature.course.CourseDetailActions
 import net.twinte.mobile_experiments.feature.course.CourseDetailScreen
+import net.twinte.mobile_experiments.feature.course.CourseEditorScreen
 import net.twinte.mobile_experiments.feature.course.courseMapUrl
 import net.twinte.mobile_experiments.ui.browser.BrowserPage
 import net.twinte.mobile_experiments.ui.browser.BrowserSheet
@@ -41,9 +41,6 @@ internal fun AppNavigation(
     val scope = rememberCoroutineScope()
     val operationsState = operations.copy(isLoading = operations.isLoading || authUiState.isLoading)
     var selectedCourseIds by rememberSerializable(timetable.selectedYear) { mutableStateOf(emptyList<String>()) }
-    var editorTarget by rememberSerializable(timetable.selectedYear) {
-        mutableStateOf<CourseEditorTarget>(CourseEditorTarget.Closed)
-    }
     val coursesScroll = rememberSaveable(timetable.selectedYear, saver = ScrollState.Saver) { ScrollState(0) }
     var deletingCourseId by rememberSaveable(timetable.selectedYear) { mutableStateOf<String?>(null) }
     var browserPage by rememberSaveable(timetable.selectedYear, stateSaver = browserPageSaver) {
@@ -62,21 +59,21 @@ internal fun AppNavigation(
         selectedCourseIds = emptyList()
         navigator.openCourseDetail(courseId)
     }
-    fun openEditor(target: CourseEditorTarget) {
+    fun openEditor(courseId: String? = null) {
         if (operationsState.isLoading) return
         selectedCourseIds = emptyList()
-        editorTarget = target
+        navigator.openCourseEditor(timetable.selectedYear, courseId)
     }
     val refresh = {
         timetableStateHolder.refreshTimetable()
         timetableStateHolder.refreshDailyTimetable()
     }
     val previousYear = {
-        navigator.dismissCourseDetails()
+        navigator.dismissCourseScreens()
         timetableStateHolder.selectPreviousYear()
     }
     val nextYear = {
-        navigator.dismissCourseDetails()
+        navigator.dismissCourseScreens()
         timetableStateHolder.selectNextYear()
     }
 
@@ -90,7 +87,7 @@ internal fun AppNavigation(
             timetable.registeredCourses.firstOrNull { it.id == route.courseId }?.let { course ->
                 CourseDetailActions(
                     course = course, enabled = !operationsState.isLoading,
-                    onEdit = { openEditor(CourseEditorTarget.Edit(course.id)) },
+                    onEdit = { openEditor(course.id) },
                     onDelete = { deletingCourseId = course.id },
                     onOpenPage = { browserPage = it },
                     onOpenMap = { openExternal(courseMapUrl(course).toString()) },
@@ -131,8 +128,8 @@ internal fun AppNavigation(
                     uiState = operationsState,
                     onSearch = timetableStateHolder::searchCourses,
                     onRegister = timetableStateHolder::registerCourse,
-                    onCreateCourse = { openEditor(CourseEditorTarget.Create) },
-                    onEditCourse = { openEditor(CourseEditorTarget.Edit(it)) },
+                    onCreateCourse = { openEditor() },
+                    onEditCourse = { openEditor(it) },
                     onChangeAttendance = timetableStateHolder::changeCourseAttendance,
                     onDelete = { timetableStateHolder.deleteCourse(it) },
                     onManageTags = navigator::openTags,
@@ -172,6 +169,16 @@ internal fun AppNavigation(
                 onCreateTag = { name, onCreated -> timetableStateHolder.createTagForCourse(route.courseId, name, onCreated) },
                 onBack = navigator::goBack,
             )
+            is AppRoute.CourseEditor -> CourseEditorScreen(
+                courseId = route.courseId,
+                course = timetable.registeredCourses.firstOrNull { it.id == route.courseId },
+                year = route.year, tags = timetable.tags, isCacheLoaded = timetable.isCacheLoaded,
+                isSaving = operationsState.isLoading, saveFailed = operationsState.operationFailed,
+                onCreate = timetableStateHolder::createCourseManually,
+                onUpdate = timetableStateHolder::updateCourse,
+                onBack = navigator::goBack,
+                status = { AppAuthStatus(authUiState) },
+            )
         }
     }
     val selectedCourses = timetable.registeredCourses.filter { it.id in selectedCourseIds }
@@ -186,23 +193,10 @@ internal fun AppNavigation(
             onDelete = {
                 timetableStateHolder.deleteCourse(course) {
                     deletingCourseId = null
-                    navigator.dismissCourseDetails(course.id)
+                    navigator.dismissCourseScreens(course.id)
                 }
             },
             onDismiss = { deletingCourseId = null },
-        )
-    }
-    val target = editorTarget
-    val course = (target as? CourseEditorTarget.Edit)?.let { editing ->
-        timetable.registeredCourses.firstOrNull { it.id == editing.courseId }
-    }
-    if (target == CourseEditorTarget.Create || course != null) {
-        CourseEditorDialog(
-            course = course, year = timetable.selectedYear, tags = timetable.tags,
-            isSaving = operationsState.isLoading, saveFailed = operationsState.operationFailed,
-            onCreate = timetableStateHolder::createCourseManually,
-            onUpdate = timetableStateHolder::updateCourse,
-            onDismiss = { editorTarget = CourseEditorTarget.Closed },
         )
     }
     browserPage?.let { page -> BrowserSheet(page, ::openExternal, onDismiss = { browserPage = null }) }
@@ -214,11 +208,4 @@ internal fun AppNavigation(
             confirmButton = { TextButton(onClick = { linkOpenFailed = false }) { Text("OK") } },
         )
     }
-}
-
-@Serializable
-private sealed interface CourseEditorTarget {
-    @Serializable data object Closed : CourseEditorTarget
-    @Serializable data object Create : CourseEditorTarget
-    @Serializable data class Edit(val courseId: String) : CourseEditorTarget
 }
