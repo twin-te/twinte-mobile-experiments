@@ -15,17 +15,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
-import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -37,7 +34,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
@@ -69,6 +65,7 @@ import kotlinx.datetime.number
 import net.twinte.mobile_experiments.core.auth.AuthState
 import net.twinte.mobile_experiments.ui.components.TwinteButton
 import net.twinte.mobile_experiments.ui.components.TwinteIconButton
+import net.twinte.mobile_experiments.ui.components.TwintePageLayout
 import net.twinte.mobile_experiments.ui.components.twinteInset
 import net.twinte.mobile_experiments.ui.theme.TwinteTheme
 import org.jetbrains.compose.resources.painterResource
@@ -194,79 +191,56 @@ private fun AppScreenFrame(
 ) {
     val colors = TwinteTheme.colors
     val isNested = route is AppRoute.CourseDetail || route == AppRoute.Tags
-    Scaffold(
-        modifier = Modifier.fillMaxSize().background(colors.surface).testTag("screen-$route"),
-        containerColor = Color.Transparent,
-        // Screens inset their content at the bottom, not their background.
-        contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal),
-        topBar = {
-            Column(Modifier.statusBarsPadding()) {
-                Row(
-                    Modifier.fillMaxWidth().heightIn(min = 76.dp).padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(Modifier.width(76.dp)) {
-                        if (isNested) {
-                            TwinteIconButton("Back", Lucide.ArrowLeft, onBack)
-                        } else {
-                            TwinteIconButton("メニュー", Lucide.Menu, onOpenMenu)
-                        }
-                    }
-                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        if (route == AppRoute.Timetable) {
-                            Image(
-                                painterResource(
-                                    if (colors.isDark) Res.drawable.twinte_logo_dark
-                                    else Res.drawable.twinte_logo_light,
-                                ),
-                                contentDescription = "Twin:te",
-                                modifier = Modifier.width(99.dp).height(27.dp),
-                            )
-                        } else {
-                            Text(
-                                when (route) {
-                                    AppRoute.Tags -> "タグ"
-                                    is AppRoute.CourseDetail -> "授業詳細"
-                                    else -> AppTab.entries.first { it.root == route }.title
-                                },
-                                color = colors.text, fontWeight = FontWeight.Medium,
-                                maxLines = 2, textAlign = TextAlign.Center,
-                            )
-                        }
-                    }
-                    Column(Modifier.width(88.dp), horizontalAlignment = Alignment.End) {
-                        if (route == AppRoute.Timetable) {
-                            Text(
-                                "${calendarDate.month.number}/${calendarDate.day} (${weekdayLabels[calendarDate.dayOfWeek.ordinal]})",
-                                color = colors.text, fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                            )
-                            Text(
-                                calendarLabel ?: "日課未取得", color = colors.muted, fontSize = 10.sp,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            )
-                        } else if (route is AppRoute.CourseDetail) {
-                            detailActions()
-                        } else if (isNested) {
-                            TwinteIconButton("メニュー", Lucide.Menu, onOpenMenu)
-                        }
-                    }
-                }
-                val offline = (authUiState.authState as? AuthState.LoggedIn)?.session?.isOffline == true
-                if (offline || authUiState.message != "Signed in") {
-                    Text(
-                        if (offline) "オフライン・保存したデータを表示" else authUiState.message,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-                        color = colors.muted, fontSize = 12.sp,
-                    )
-                }
-                if (authUiState.isLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
-            }
+    TwintePageLayout(
+        modifier = Modifier.testTag("screen-$route"),
+        title = {
+            if (route == AppRoute.Timetable) {
+                Image(
+                    painterResource(if (colors.isDark) Res.drawable.twinte_logo_dark else Res.drawable.twinte_logo_light),
+                    contentDescription = "Twin:te", modifier = Modifier.width(99.dp).height(27.dp),
+                )
+            } else Text(
+                when (route) {
+                    AppRoute.Tags -> "タグ"
+                    is AppRoute.CourseDetail -> "授業詳細"
+                    else -> AppTab.entries.first { it.root == route }.title
+                },
+                color = colors.text, fontWeight = FontWeight.Medium, maxLines = 2, textAlign = TextAlign.Center,
+            )
         },
-    ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()) {
-            content()
-        }
+        leading = {
+            if (isNested) TwinteIconButton("Back", Lucide.ArrowLeft, onBack)
+            else TwinteIconButton("メニュー", Lucide.Menu, onOpenMenu)
+        },
+        trailing = {
+            if (route == AppRoute.Timetable) {
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        "${calendarDate.month.number}/${calendarDate.day} (${weekdayLabels[calendarDate.dayOfWeek.ordinal]})",
+                        color = colors.text, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                    )
+                    Text(calendarLabel ?: "日課未取得", color = colors.muted, fontSize = 10.sp,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            } else if (route is AppRoute.CourseDetail) detailActions()
+            else if (isNested) TwinteIconButton("メニュー", Lucide.Menu, onOpenMenu)
+        },
+        status = { AppAuthStatus(authUiState) },
+        content = content,
+    )
+}
+
+@Composable
+internal fun AppAuthStatus(authUiState: AuthUiState) {
+    val offline = (authUiState.authState as? AuthState.LoggedIn)?.session?.isOffline == true
+    if (offline || authUiState.message != "Signed in") {
+        Text(
+            if (offline) "オフライン・保存したデータを表示" else authUiState.message,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            color = TwinteTheme.colors.muted, fontSize = 12.sp,
+        )
     }
+    if (authUiState.isLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
 }
 
 @Composable
