@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import net.twinte.mobile_experiments.ui.theme.TwinteTheme
@@ -32,12 +33,13 @@ internal fun TwintePageLayout(
     modifier: Modifier = Modifier,
     leadingWidth: Dp = 76.dp,
     trailingWidth: Dp = 88.dp,
+    background: Brush? = null,
     trailing: @Composable () -> Unit = {},
     status: @Composable () -> Unit = {},
     content: @Composable () -> Unit,
 ) {
     Scaffold(
-        modifier = modifier.fillMaxSize().background(TwinteTheme.colors.surface),
+        modifier = modifier.fillMaxSize().background(background ?: TwinteTheme.colors.surface),
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal),
         topBar = {

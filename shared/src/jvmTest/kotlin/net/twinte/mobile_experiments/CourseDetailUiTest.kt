@@ -52,8 +52,8 @@ class CourseDetailUiTest {
         onNodeWithTag("slot-Monday-2").performClick()
         onNodeWithContentDescription("授業の操作").performClick()
         onNodeWithText("編集する").performClick()
-        onNodeWithTag("editor-授業名").performTextClearance()
-        onNodeWithTag("editor-授業名").performTextInput("Updated course")
+        onNodeWithTag("input-授業名").performTextClearance()
+        onNodeWithTag("input-授業名").performTextInput("Updated course")
         onNodeWithTag("save-course").performClick()
         onNodeWithText("Updated course").assertIsDisplayed()
         onNodeWithContentDescription("Back").performClick()
@@ -153,8 +153,8 @@ class CourseDetailUiTest {
         onNodeWithTag("slot-Monday-2").performClick()
         onNodeWithContentDescription("授業の操作").performClick()
         onNodeWithText("編集する").performClick()
-        onNodeWithTag("editor-授業名").performTextClearance()
-        onNodeWithTag("editor-授業名").performTextInput("Unsaved course")
+        onNodeWithTag("input-授業名").performTextClearance()
+        onNodeWithTag("input-授業名").performTextInput("Unsaved course")
         runOnIdle { restoration.saveAndDispose() }
         runOnIdle {
             gate = CompletableDeferred()

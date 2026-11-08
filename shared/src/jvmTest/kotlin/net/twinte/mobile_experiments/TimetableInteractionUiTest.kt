@@ -89,11 +89,11 @@ class TimetableInteractionUiTest {
         onNodeWithContentDescription("メニュー").performClick()
         onNodeWithTag("destination-Courses").performClick()
         onNodeWithText("Edit", substring = false).performScrollTo().performClick()
-        onNodeWithTag("editor-授業名").performTextClearance()
-        onNodeWithTag("editor-授業名").performTextInput("Unsaved draft")
+        onNodeWithTag("input-授業名").performTextClearance()
+        onNodeWithTag("input-授業名").performTextInput("Unsaved draft")
         runOnIdle { restoration.saveAndDispose() }
         runOnIdle { restoration.restore() }
-        onNodeWithTag("editor-授業名").assertTextContains("Unsaved draft")
+        onNodeWithTag("input-授業名").assertTextContains("Unsaved draft")
         onNodeWithContentDescription("Back").performClick()
         onNodeWithText("破棄する").performClick()
         onNodeWithTag("screen-Courses").assertIsDisplayed()
@@ -103,7 +103,7 @@ class TimetableInteractionUiTest {
         onNodeWithTag("slot-Monday-2").performClick()
         onNodeWithContentDescription("授業の操作").performClick()
         onNodeWithText("編集する").performClick()
-        onNodeWithTag("editor-授業名").assertTextContains("情報メディア実験A")
+        onNodeWithTag("input-授業名").assertTextContains("情報メディア実験A")
         onNodeWithContentDescription("Back").performClick()
     }
 

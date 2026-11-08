@@ -69,7 +69,7 @@ class TimetableHomeUiTest {
         onNodeWithText("1.5 単位").assertIsDisplayed()
         onNodeWithContentDescription("授業の操作").performClick()
         onNodeWithText("編集する").performClick()
-        onNodeWithTag("editor-授業名").assertTextContains("情報メディア実験A")
+        onNodeWithTag("input-授業名").assertTextContains("情報メディア実験A")
         onNodeWithContentDescription("Back").performClick()
         onNodeWithTag("course-detail").assertIsDisplayed()
         onNodeWithContentDescription("Back").performClick()

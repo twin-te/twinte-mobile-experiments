@@ -51,6 +51,9 @@ import net.twinte.mobile_experiments.core.domain.UpdateRegisteredCourseInput
 import net.twinte.mobile_experiments.ui.components.TwinteButton
 import net.twinte.mobile_experiments.ui.components.TwinteIconButton
 import net.twinte.mobile_experiments.ui.components.TwintePageLayout
+import net.twinte.mobile_experiments.ui.components.TwintePrimaryButton
+import net.twinte.mobile_experiments.ui.components.TwinteTextField
+import net.twinte.mobile_experiments.ui.components.TwinteCheckboxRow
 import net.twinte.mobile_experiments.ui.theme.TwinteTheme
 
 @Composable
@@ -102,7 +105,7 @@ internal fun CourseEditorScreen(
                     verticalArrangement = Arrangement.spacedBy(32.dp),
                 ) {
                     EditorSection("授業名", required = true) {
-                        EditorField("授業名", draft.name, { draft = draft.copy(name = it) }, !isSaving, "例) ゼミ")
+                        TwinteTextField("授業名", draft.name, { draft = draft.copy(name = it) }, !isSaving, "例) ゼミ")
                     }
                     EditorSection("開講時限") {
                         draft.schedules.forEachIndexed { index, schedule ->
@@ -122,7 +125,7 @@ internal fun CourseEditorScreen(
                         }
                     }
                     EditorSection("単位数", required = true) {
-                        EditorField(
+                        TwinteTextField(
                             "単位数", draft.credit, { draft = draft.copy(credit = it) }, !isSaving,
                             "例) 1.0", keyboardType = KeyboardType.Decimal,
                         )
@@ -152,7 +155,7 @@ internal fun CourseEditorScreen(
                                     onRemove = { draft = draft.copy(rooms = draft.rooms.filterIndexed { i, _ -> i != index }) },
                                 )
                                 draft.schedules.forEachIndexed { scheduleIndex, schedule ->
-                                    EditorCheck(
+                                    TwinteCheckboxRow(
                                         courseScheduleText(listOf(schedule)), scheduleIndex in room.scheduleIndices, !isSaving,
                                     ) { checked ->
                                         val indices = if (checked) room.scheduleIndices + scheduleIndex
@@ -170,18 +173,18 @@ internal fun CourseEditorScreen(
                     }
                     EditorSection("授業形式") {
                         CourseMethod.entries.forEach { method ->
-                            EditorCheck(method.detailLabel, method in draft.methods, !isSaving) { checked ->
+                            TwinteCheckboxRow(method.detailLabel, method in draft.methods, !isSaving) { checked ->
                                 draft = draft.copy(methods = if (checked) draft.methods + method else draft.methods - method)
                             }
                         }
                     }
                     if (courseId != null) {
                         EditorSection("メモ") {
-                            EditorField("メモ", draft.memo, { draft = draft.copy(memo = it) }, !isSaving, singleLine = false)
+                            TwinteTextField("メモ", draft.memo, { draft = draft.copy(memo = it) }, !isSaving, singleLine = false)
                         }
                         if (tags.isNotEmpty()) EditorSection("タグ") {
                             tags.forEach { tag ->
-                                EditorCheck(tag.name, tag.id in draft.tagIds, !isSaving) { checked ->
+                                TwinteCheckboxRow(tag.name, tag.id in draft.tagIds, !isSaving) { checked ->
                                     draft = draft.copy(tagIds = if (checked) draft.tagIds + tag.id else draft.tagIds - tag.id)
                                 }
                             }
@@ -196,7 +199,7 @@ internal fun CourseEditorScreen(
                         )
                     }
                     if (isSaving) LinearProgressIndicator(Modifier.fillMaxWidth())
-                    SaveCourseButton(
+                    TwintePrimaryButton(
                         if (courseId == null) "授業を作成" else "変更を保存",
                         enabled = draft.isValid && !isSaving,
                         modifier = Modifier.align(Alignment.CenterHorizontally).testTag("save-course"),

@@ -75,14 +75,14 @@ class AppNavigationUiTest {
         setContent { restoration.Content { TwinteTheme { TestAuthenticatedApp() } } }
         navigate(AppTab.Courses)
         onNodeWithText("Create course").performScrollTo().performClick()
-        onNodeWithTag("editor-授業名").performTextInput("New seminar")
-        onNodeWithTag("editor-単位数").performTextInput("1.5")
+        onNodeWithTag("input-授業名").performTextInput("New seminar")
+        onNodeWithTag("input-単位数").performTextInput("1.5")
 
         runOnIdle { restoration.saveAndDispose() }
         runOnIdle { restoration.restore() }
 
-        onNodeWithTag("editor-授業名").assertTextContains("New seminar")
-        onNodeWithTag("editor-単位数").assertTextContains("1.5")
+        onNodeWithTag("input-授業名").assertTextContains("New seminar")
+        onNodeWithTag("input-単位数").assertTextContains("1.5")
         onNodeWithContentDescription("Back").performClick()
         onNodeWithText("破棄する").performClick()
         onNodeWithTag("screen-Courses").assertIsDisplayed()
@@ -217,8 +217,8 @@ class AppNavigationUiTest {
         }
         navigate(AppTab.Courses)
         onNodeWithText("Create course").performScrollTo().performClick()
-        onNodeWithTag("editor-授業名").performTextInput("New seminar")
-        onNodeWithTag("editor-単位数").performTextInput("1.5")
+        onNodeWithTag("input-授業名").performTextInput("New seminar")
+        onNodeWithTag("input-単位数").performTextInput("1.5")
         onNodeWithTag("save-course").performClick()
         runOnIdle {
             assertEquals(1, service.createdManualInputs.size)

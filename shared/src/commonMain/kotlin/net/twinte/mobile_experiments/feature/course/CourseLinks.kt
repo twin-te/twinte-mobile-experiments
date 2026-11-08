@@ -6,10 +6,13 @@ import io.ktor.http.appendPathSegments
 import net.twinte.mobile_experiments.core.domain.RegisteredCourse
 
 internal fun syllabusUrl(course: RegisteredCourse): Url? = course.code?.takeIf(String::isNotBlank)?.let { code ->
-    URLBuilder("https://kdb.tsukuba.ac.jp").apply {
-        appendPathSegments("syllabi", course.year.toString(), code, "jpn", "", encodeSlash = true)
-    }.build()
+    syllabusUrl(course.year, code)
 }
+
+internal fun syllabusUrl(year: Int, code: String): Url =
+    URLBuilder("https://kdb.tsukuba.ac.jp").apply {
+        appendPathSegments("syllabi", year.toString(), code, "jpn", "", encodeSlash = true)
+    }.build()
 
 internal val responUrl = Url("https://atmnb.tsukuba.ac.jp")
 
