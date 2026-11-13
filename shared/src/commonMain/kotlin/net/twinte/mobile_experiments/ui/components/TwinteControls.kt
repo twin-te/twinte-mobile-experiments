@@ -28,9 +28,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.draw.innerShadow
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.ClipOp
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.addOutline
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
@@ -73,6 +83,42 @@ internal fun Modifier.twinteInputInset(shape: Shape): Modifier {
     val colors = TwinteTheme.colors
     return innerShadow(shape, Shadow(4.dp, colors.inputInsetDark, offset = DpOffset(1.dp, 1.dp)))
         .innerShadow(shape, Shadow(3.dp, colors.inputInsetLight, offset = DpOffset((-2).dp, (-2).dp)))
+}
+
+@Composable
+internal fun Modifier.twintePrimaryInset(shape: Shape): Modifier {
+    val colors = TwinteTheme.colors
+    return innerShadow(shape, Shadow(2.dp, colors.primaryInsetDark, offset = DpOffset(1.dp, 2.dp)))
+        .innerShadow(shape, Shadow(1.dp, colors.primaryInsetLight, offset = DpOffset((-1).dp, (-2).dp)))
+}
+
+@Composable
+internal fun Modifier.twinteAccentIcon(): Modifier {
+    val brush = TwinteTheme.colors.accentFill
+    return graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }.drawWithCache {
+        onDrawWithContent {
+            drawContent()
+            drawRect(brush, blendMode = BlendMode.SrcIn)
+        }
+    }
+}
+
+@Composable
+internal fun Modifier.twintePanelShadow(shape: Shape): Modifier {
+    val colors = TwinteTheme.colors
+    // Draw on an empty background layer so outer shadows do not tint the transparent panel's interior.
+    return drawWithCache {
+        val path = Path().apply { addOutline(shape.createOutline(size, layoutDirection, this@drawWithCache)) }
+        onDrawWithContent { clipPath(path, ClipOp.Difference) { this@onDrawWithContent.drawContent() } }
+    }.dropShadow(shape, Shadow(10.dp, colors.shadowDark, offset = DpOffset(2.dp, 4.dp)))
+        .dropShadow(shape, Shadow(2.dp, colors.shadowLight, offset = DpOffset((-1).dp, (-1).dp)))
+}
+
+@Composable
+internal fun Modifier.twintePanelInset(shape: Shape): Modifier {
+    val colors = TwinteTheme.colors
+    return innerShadow(shape, Shadow(12.dp, colors.insetLight, offset = DpOffset((-6).dp, (-8).dp)))
+        .innerShadow(shape, Shadow(4.dp, colors.insetDark, offset = DpOffset(2.dp, 3.dp)))
 }
 
 @Composable
@@ -125,6 +171,7 @@ internal fun TwinteIconButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     diameter: Dp = 36.dp,
+    accented: Boolean = false,
 ) {
     val colors = TwinteTheme.colors
     val shape = RoundedCornerShape(50)
@@ -141,15 +188,23 @@ internal fun TwinteIconButton(
             contentAlignment = Alignment.Center,
         ) {
             Box(
-                modifier = Modifier.size(diameter)
+                modifier = Modifier.size(diameter).alpha(if (accented && !enabled) 0.3f else 1f)
                     .then(if (pressed) Modifier else Modifier.twinteRaised(shape))
-                    .background(colors.background, shape)
+                    .then(
+                        when {
+                            accented && pressed -> Modifier.background(colors.accentFill, shape)
+                            accented -> Modifier.background(colors.surface, shape)
+                            else -> Modifier.background(colors.background, shape)
+                        },
+                    )
                     .then(if (pressed) Modifier.twinteInset(shape) else Modifier),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    image, contentDescription = null, modifier = Modifier.size(diameter * (5f / 9f)),
-                    tint = if (enabled) colors.muted else colors.muted.copy(alpha = 0.5f),
+                    image, contentDescription = null,
+                    modifier = Modifier.size(diameter * (5f / 9f))
+                        .then(if (accented && !pressed) Modifier.twinteAccentIcon() else Modifier),
+                    tint = if (accented) Color.White else if (enabled) colors.muted else colors.muted.copy(alpha = 0.5f),
                 )
             }
         }

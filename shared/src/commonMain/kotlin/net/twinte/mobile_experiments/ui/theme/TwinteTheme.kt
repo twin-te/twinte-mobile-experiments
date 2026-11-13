@@ -41,6 +41,10 @@ internal data class TwinteColors(
     val insetDark: Color,
     val inputInsetLight: Color,
     val inputInsetDark: Color,
+    val primaryInsetLight: Color,
+    val primaryInsetDark: Color,
+    val unselected: Color,
+    val buttonGray: Color,
     val isDark: Boolean,
 ) {
     val surface: Brush get() = Brush.linearGradient(listOf(surfaceStart, surfaceEnd))
@@ -66,6 +70,10 @@ private val lightColors = TwinteColors(
     insetDark = Color(0x3EAEBECD),
     inputInsetLight = Color.White,
     inputInsetDark = Color(0xA4B1BDC8),
+    primaryInsetLight = Color(0x40AAF0DF),
+    primaryInsetDark = Color(0x4086E1DC),
+    unselected = Color(0xFFB8C1C7),
+    buttonGray = Color(0xFF889396),
     isDark = false,
 )
 
@@ -88,6 +96,10 @@ private val darkColors = TwinteColors(
     insetDark = Color(0xD612141B),
     inputInsetLight = Color(0x498A92B2),
     inputInsetDark = Color(0x9C000000),
+    primaryInsetLight = Color(0x40608A80),
+    primaryInsetDark = Color(0x8F0C201E),
+    unselected = Color(0xFF58656C),
+    buttonGray = Color(0xFF9DB1B7),
     isDark = true,
 )
 

@@ -52,7 +52,10 @@ class AppNavigatorTest {
     @Test
     fun everyRouteRoundTripsWithoutPlatformReflection() {
         val serializer = PolymorphicSerializer(NavKey::class)
-        val routes = AppTab.entries.map { it.root } + AppRoute.Tags
+        val routes = AppTab.entries.map { it.root } + listOf(
+            AppRoute.Tags, AppRoute.RegisteredCourses, AppRoute.CourseDetail("course-id"),
+            AppRoute.CourseEditor(2026), AppRoute.CourseEditor(2026, "course-id"),
+        )
         routes.forEach { route ->
             val saved = encodeToSavedState(serializer, route, appRoutesConfiguration)
             assertEquals(route, decodeFromSavedState(serializer, saved, appRoutesConfiguration))
@@ -60,14 +63,45 @@ class AppNavigatorTest {
     }
 
     @Test
+    fun registrationReturnsToTheGridEvenIfAHiddenTimetableDetailIsRetained() {
+        val navigator = navigator()
+        navigator.openCourseDetail("previous-course")
+        navigator.selectTab(AppTab.Courses)
+        navigator.openRegisteredCourses()
+        navigator.returnToTimetable()
+        assertEquals(AppRoute.Timetable, navigator.currentRoute)
+        assertEquals(listOf(AppRoute.Timetable), navigator.stacks.getValue(AppTab.Timetable).toList())
+        assertEquals(listOf(AppRoute.Courses), navigator.stacks.getValue(AppTab.Courses).toList())
+    }
+
+    @Test
+    fun editorReturnsToItsOriginAndIsRemovedWithItsCourse() {
+        val navigator = navigator()
+        navigator.openCourseDetail("course-id")
+        navigator.openCourseEditor(2026, "course-id")
+        navigator.openCourseEditor(2026, "course-id")
+        assertEquals(3, navigator.stacks.getValue(AppTab.Timetable).size)
+        navigator.goBack()
+        assertEquals(AppRoute.CourseDetail("course-id"), navigator.currentRoute)
+        navigator.openCourseEditor(2026, "course-id")
+        navigator.dismissCourseScreens("course-id")
+        assertEquals(AppRoute.Timetable, navigator.currentRoute)
+        navigator.selectTab(AppTab.Courses)
+        navigator.openCourseEditor(2026)
+        navigator.dismissCourseScreens()
+        assertEquals(AppRoute.Courses, navigator.currentRoute)
+    }
+
+    @Test
     fun editorDraftRoundTripsAllEditableFields() {
         val draft = CourseEditorDraft(
             year = 2026,
             name = "Seminar",
-            instructors = "Teacher",
+            instructors = listOf("Teacher", ""),
             credit = "1.5",
             methods = setOf(CourseMethod.FaceToFace),
             schedules = listOf(CourseSchedule(Module.SpringA, Day.Monday, 2, "3A204")),
+            rooms = listOf(CourseEditorRoom("研究室", setOf(0)), CourseEditorRoom("", emptySet())),
             memo = "Bring notes",
             tagIds = setOf("tag-id"),
         )
